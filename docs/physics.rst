@@ -16,7 +16,10 @@ and Vega zero point :math:`f_{\nu,0}` (Bessell et al. 1998) is
 .. math:: F_{band} = f_{\nu,0}\,10^{-0.4 m}\,\frac{c\,\Delta\lambda}{\lambda_0^2},
 
 and :math:`F_\lambda(\lambda) = s(\lambda)\,F_{band}/\int_{band} s\,d\lambda` in
-W m\ :sup:`-2` nm\ :sup:`-1`. Lines are multiplicative Gaussians.
+W m\ :sup:`-2` nm\ :sup:`-1`. The frequency width :math:`c\Delta\lambda/\lambda_0^2` is the
+reference-notebook approximation; the exact :math:`c\Delta\lambda/(\lambda_{lo}\lambda_{hi})`
+differs by ~1% (0.01 mag). Lines are multiplicative Gaussians added *after* normalisation, so
+``mag`` is the continuum magnitude.
 
 Stellar electron rate
 ---------------------
@@ -66,7 +69,12 @@ For a total exposure :math:`t` split into :math:`n_{exp}` reads (Howell 2006),
 
 .. math:: \mathrm{SNR} = \frac{N_* t}{\sqrt{N_* t + n_{pix}\,(N_{sky} + D)\,t + n_{pix}\,n_{exp}\,RN^2}}.
 
-``exptime`` inverts this quadratic for :math:`t` at a target SNR. Because :math:`N_* \propto
+``exptime`` inverts this quadratic for :math:`t` at a target SNR. Bins where :math:`K_{opt}=0`
+(telluric cores) return NaN. The sky-subtraction noise term :math:`(1 + n_{pix}/n_{sky})` of
+Howell is omitted, as in the reference notebook (a sky fiber is assumed well sampled).
+:math:`n_{pix}` in the bundled presets counts the dispersion direction only (2.2 / 2.5 pixels,
+from the reference notebook); Howell's :math:`n_{pix}` is the full extraction aperture, so
+multiply by the fiber-image height in pixels once it is known. Because :math:`N_* \propto
 10^{-0.4 m}` the limiting magnitude at fixed :math:`(t, \mathrm{SNR})` is also a quadratic and is
 solved analytically; ``snr_grid`` evaluates the SNR on a (magnitude, exposure) grid the same way.
 
@@ -91,7 +99,13 @@ Known limitations
 
 * QE is a flat placeholder per instrument (pass a callable ``qe(wavelength_nm)`` for a curve).
 * CSHELL slit losses and full wells are placeholders.
-* One sky table at airmass 1.3; no airmass or moon-phase model beyond a scale factor.
+* One sky table at airmass 1.3, sampled at R=20,000; no airmass or moon-phase model beyond a
+  scale factor. For the CSHELL presets (R > 20,000) each resel takes the nearest sample, so
+  airglow lines are pre-smoothed to R=20,000; regenerate a finer SkyCalc table for line-level work.
+* :math:`K_{opt}` is sampled at 1 nm with single-sample zeros at telluric cores; the telluric
+  treatment is coarse and belongs to the airmass assumed by Choi et al., not necessarily 1.3.
+* Reads shorter than ``Instrument.min_exptime`` (8 s Fowler minimum for CSHELL) are flagged in
+  ``ETCResult.below_min_exptime``; the read noise is not adjusted.
 * No telluric absorption in the *source* path unless ``apply_extinction=True`` (and then the
   extinction already in :math:`K_{opt}` is double counted).
 * Blackbody SEDs only, unless you supply a spectrum.
