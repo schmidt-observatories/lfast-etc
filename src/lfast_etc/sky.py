@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from astropy.io import fits
 
-from .constants import SKY_DIR
+from .constants import SKY_DIR, positive
 
 DEFAULT_SKY = SKY_DIR / "skytable_secz1.3.fits"
 
@@ -44,7 +44,7 @@ class Sky:
 
     def __init__(self, path=DEFAULT_SKY, scale=1.0):
         self.path = str(path)
-        self.scale = float(scale)
+        self.scale = positive("scale", scale, allow_zero=True)
         self.wavelength_nm, self._flux, self._trans = _load(self.path)
 
     def radiance_per_bin(self, wavelength_nm, delta_lambda_nm):

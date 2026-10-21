@@ -26,9 +26,12 @@ from .instrument import Instrument
 from .telescope import Telescope
 from .sky import Sky
 from .source import Source
+from .constants import positive
+
+MAX_BINS = 5_000_000   # guard against absurd resolving powers (memory)
 
 
-@dataclass
+@dataclass(eq=False)
 class ETCResult:
     """Per-resolution-element output of an ETC calculation.
 
@@ -51,6 +54,7 @@ class ETCResult:
     below_min_exptime: np.ndarray  # per-read time shorter than Instrument.min_exptime
     source: str = ""
     setup: str = ""
+    title: str = ""
     solved_for: str = ""
 
     def at(self, wavelength_nm):
@@ -61,9 +65,10 @@ class ETCResult:
 
     def summary(self, percentiles=(10, 50, 90)):
         """Percentiles of ``snr`` and ``exptime`` over the band, plus a saturation flag."""
+        pct = lambda a: {int(p): float(v) for p, v in zip(percentiles, np.nanpercentile(a, percentiles))}
         return {
-            "snr": dict(zip(percentiles, np.nanpercentile(self.snr, percentiles))),
-            "exptime": dict(zip(percentiles, np.nanpercentile(self.exptime, percentiles))),
+            "snr": pct(self.snr),
+            "exptime": pct(self.exptime),
             "saturated_fraction": float(np.mean(self.saturated)),
             "below_min_exptime_fraction": float(np.mean(self.below_min_exptime)),
             "n_bins": int(len(self.wavelength)),
@@ -74,14 +79,17 @@ class ETCResult:
         import matplotlib.pyplot as plt
         if ax is None:
             _, ax = plt.subplots(figsize=(9, 4))
+        labels = {"exptime": "Total exposure time (s)", "snr": "SNR per resel",
+                  "n_star": "Star (e$^-$/s per resel)", "n_sky_pix": "Sky (e$^-$/s per pixel)",
+                  "peak_e_per_pixel": "Peak e$^-$ per pixel per read"}
         what = what or self.solved_for or "snr"
         y = getattr(self, what)
         kw.setdefault("lw", 0.8)
         ax.plot(self.wavelength, y, **kw)
         ax.set_xlabel("Wavelength (nm)")
-        ax.set_ylabel("Exposure time (s)" if what == "exptime" else "SNR per resel")
+        ax.set_ylabel(labels.get(what, what))
         ax.set_yscale("log")
-        ax.set_title(f"{self.source} | {self.setup.split(':')[0]}, {self.setup.split('|')[1].split('(')[0].strip()}", fontsize=9)
+        ax.set_title(self.title, fontsize=9)
         return ax
 
     def plot_rates(self, ax=None):
@@ -102,6 +110,10 @@ class ETCResult:
 
 class LFASTETC:
     """Exposure time calculator for one instrument on the LFAST array.
+
+    The object is immutable after construction (throughputs and the sky rate
+    are precomputed): build a new ``LFASTETC`` instead of changing
+    ``instrument``/``telescope``/``sky`` attributes.
 
     Parameters
     ----------
@@ -129,18 +141,21 @@ class LFASTETC:
     """
 
     def __init__(self, instrument="bench_r1800", telescope=None, sky=None,
-                 n_telescopes=20, fiber="18um", wavelength_min_nm=None,
+                 n_telescopes=None, fiber=None, wavelength_min_nm=None,
                  wavelength_max_nm=None, grid="resel", step_nm=1.0,
                  apply_extinction=False):
         self.instrument = (Instrument.from_preset(instrument)
                            if isinstance(instrument, str) else instrument)
-        self.telescope = telescope or Telescope(n_telescopes=n_telescopes, fiber=fiber)
+        if telescope is not None and (n_telescopes is not None or fiber is not None):
+            raise ValueError("give either telescope= or n_telescopes=/fiber=, not both")
+        self.telescope = telescope or Telescope(n_telescopes=n_telescopes or 20, fiber=fiber or "18um")
         self.sky = sky or Sky()
         self.apply_extinction = apply_extinction
         lo, hi = self.telescope.wavelength_range_nm
         slo, shi = float(self.sky.wavelength_nm.min()), float(self.sky.wavelength_nm.max())
-        wmin = max(wavelength_min_nm or self.instrument.wavelength_min_nm, lo, slo)
-        wmax = min(wavelength_max_nm or self.instrument.wavelength_max_nm, hi, shi)
+        wmin = self.instrument.wavelength_min_nm if wavelength_min_nm is None else positive("wavelength_min_nm", wavelength_min_nm)
+        wmax = self.instrument.wavelength_max_nm if wavelength_max_nm is None else positive("wavelength_max_nm", wavelength_max_nm)
+        wmin, wmax = max(wmin, lo, slo), min(wmax, hi, shi)
         if wmax <= wmin:
             raise ValueError(f"empty wavelength range {wmin}-{wmax} nm")
         self.wavelength = self._build_grid(wmin, wmax, grid, step_nm)
@@ -155,13 +170,18 @@ class LFASTETC:
     def _build_grid(self, wmin, wmax, grid, step_nm):
         if grid == "uniform":
             # bins are still one resel wide (delta_lambda = lambda/R); step_nm only sets the sampling
-            return np.arange(wmin, wmax + step_nm / 2, step_nm)
-        if grid != "resel":
+            step_nm = positive("step_nm", step_nm)
+            n = int((wmax - wmin) / step_nm) + 1
+        elif grid == "resel":
+            # lambda_{j+1} = lambda_j (1 + 1/R)  -> geometric grid
+            n = int(np.floor(np.log(wmax / wmin) / np.log1p(1.0 / self.instrument.resolving_power))) + 1
+        else:
             raise ValueError("grid must be 'resel' or 'uniform'")
-        # lambda_{j+1} = lambda_j (1 + 1/R)  -> geometric grid
-        R = self.instrument.resolving_power
-        n = int(np.floor(np.log(wmax / wmin) / np.log1p(1.0 / R))) + 1
-        return wmin * (1.0 + 1.0 / R) ** np.arange(n)
+        if n > MAX_BINS:
+            raise ValueError(f"grid would have {n} bins (> {MAX_BINS}); lower the resolving power or narrow the range")
+        if grid == "uniform":
+            return wmin + step_nm * np.arange(n)
+        return wmin * (1.0 + 1.0 / self.instrument.resolving_power) ** np.arange(n)
 
     # ---- fixed (source-independent) pieces ----------------------------------
     @property
@@ -232,6 +252,12 @@ class LFASTETC:
         t = (-bq + np.sqrt(bq ** 2 - 4 * a * c)) / (2 * a)
         return np.where(n_star > 0, t, np.nan)
 
+    @staticmethod
+    def _check_n_exp(n_exp):
+        if int(n_exp) != n_exp or n_exp < 1:
+            raise ValueError(f"n_exp must be a positive integer, got {n_exp!r}")
+        return int(n_exp)
+
     def _result(self, source, r, t, snr, n_exp, solved_for):
         t = np.broadcast_to(np.asarray(t, float), self.wavelength.shape).copy()
         snr = np.broadcast_to(np.asarray(snr, float), self.wavelength.shape).copy()
@@ -249,10 +275,14 @@ class LFASTETC:
             n_star=r["n_star"], n_sky_pix=r["n_sky_pix"], dark_pix=r["dark_pix"],
             read_noise=r["read_noise"], n_pix=r["n_pix"], n_exp=n_exp,
             peak_e_per_pixel=peak, saturated=saturated, below_min_exptime=below_min,
-            source=source.describe(), setup=self.describe(), solved_for=solved_for)
+            source=source.describe(), setup=self.describe(), solved_for=solved_for,
+            title=f"{source.describe()} | {self.instrument.name}, {self.telescope.n_telescopes} telescopes ({self.telescope.combine})")
 
     def snr(self, source, exptime, n_exp=1):
         """SNR per resel for a total exposure ``exptime`` [s] split into ``n_exp`` reads."""
+        n_exp = self._check_n_exp(n_exp)
+        if np.any(np.asarray(exptime, float) < 0):
+            raise ValueError("exptime must be >= 0")
         r = self.rates(source)
         s = self._snr_formula(r["n_star"], r["n_sky_pix"], r["dark_pix"], r["read_noise"],
                               r["n_pix"], np.asarray(exptime, float), n_exp)
@@ -260,6 +290,8 @@ class LFASTETC:
 
     def exptime(self, source, snr, n_exp=1):
         """Total exposure time [s] to reach ``snr`` per resel in every bin."""
+        n_exp = self._check_n_exp(n_exp)
+        snr = positive("snr", snr, allow_zero=True)
         r = self.rates(source)
         t = self._exptime_formula(r["n_star"], r["n_sky_pix"], r["dark_pix"], r["read_noise"],
                                   r["n_pix"], float(snr), n_exp)
@@ -281,6 +313,8 @@ class LFASTETC:
             return np.nanmedian(arr, axis=-1)
         if np.ndim(wavelength) == 0:
             return arr[..., np.argmin(np.abs(w - wavelength))]
+        if len(wavelength) != 2:
+            raise ValueError("wavelength window must be (lo, hi)")
         lo, hi = wavelength
         m = (w >= lo) & (w <= hi)
         if not m.any():
@@ -295,15 +329,42 @@ class LFASTETC:
         Returns an array of shape ``(len(mags), len(exptimes))`` (plus a
         wavelength axis for ``"all"``).
         """
+        n_exp = self._check_n_exp(n_exp)
         mags = np.atleast_1d(np.asarray(mags, float))
         ts = np.atleast_1d(np.asarray(exptimes, float))
         r = self.rates(source.with_mag(0.0))
-        scale = 10 ** (-0.4 * (mags - 0.0))
-        s = r["n_star"][None, None, :] * scale[:, None, None]
+        # ponytail: select the wavelength bins first so the (mag, t, bin) cube stays small
+        sel = self._bin_mask(wavelength)
+        s = r["n_star"][sel][None, None, :] * 10 ** (-0.4 * mags)[:, None, None]
         t = ts[None, :, None]
-        snr = self._snr_formula(s, r["n_sky_pix"], r["dark_pix"], r["read_noise"],
+        snr = self._snr_formula(s, r["n_sky_pix"][sel], r["dark_pix"], r["read_noise"],
                                 r["n_pix"], t, n_exp)
-        return self._select(snr, wavelength)
+        return self._reduce(snr, wavelength)
+
+    def _bin_mask(self, wavelength):
+        """Bins that :meth:`_select` would use for this ``wavelength`` selector."""
+        w = self.wavelength
+        if wavelength is None or (isinstance(wavelength, str) and wavelength == "all"):
+            return slice(None)
+        if isinstance(wavelength, str):
+            raise ValueError("wavelength must be None, a float, (lo, hi) or 'all'")
+        if np.ndim(wavelength) == 0:
+            return slice(int(np.argmin(np.abs(w - wavelength))), int(np.argmin(np.abs(w - wavelength))) + 1)
+        if len(wavelength) != 2:
+            raise ValueError("wavelength window must be (lo, hi)")
+        m = (w >= wavelength[0]) & (w <= wavelength[1])
+        if not m.any():
+            raise ValueError(f"no bins in {wavelength[0]}-{wavelength[1]} nm")
+        return m
+
+    @staticmethod
+    def _reduce(arr, wavelength):
+        """Companion to :meth:`_bin_mask`: collapse the already-selected last axis."""
+        if isinstance(wavelength, str) and wavelength == "all":
+            return arr
+        if wavelength is not None and np.ndim(wavelength) == 0:
+            return arr[..., 0]
+        return np.nanmedian(arr, axis=-1)
 
     def limiting_magnitude(self, source, exptime, snr, wavelength=None, n_exp=1):
         """Magnitude (in ``source.band``) reaching ``snr`` per resel in ``exptime`` [s].
@@ -311,8 +372,9 @@ class LFASTETC:
         Solved analytically per bin, then reduced with ``wavelength`` as in
         :meth:`snr_grid` (``"all"`` returns the per-bin array).
         """
+        n_exp = self._check_n_exp(n_exp)
         r = self.rates(source.with_mag(0.0))
-        t, q = float(exptime), float(snr)
+        t, q = positive("exptime", exptime), positive("snr", snr)
         c = r["n_pix"] * (r["n_sky_pix"] + r["dark_pix"]) * t + r["n_pix"] * n_exp * r["read_noise"] ** 2
         # s^2 t^2 - q^2 s t - q^2 c = 0  ->  s = (q^2 t + sqrt(q^4 t^2 + 4 t^2 q^2 c)) / (2 t^2)
         s = (q ** 2 * t + np.sqrt(q ** 4 * t ** 2 + 4 * t ** 2 * q ** 2 * c)) / (2 * t ** 2)
@@ -322,12 +384,14 @@ class LFASTETC:
 
     def exptime_vs_mag(self, source, mags, snr, wavelength=None, n_exp=1):
         """Total exposure time [s] to reach ``snr`` versus magnitude, reduced with ``wavelength`` as in :meth:`snr_grid`."""
+        n_exp = self._check_n_exp(n_exp)
         mags = np.atleast_1d(np.asarray(mags, float))
         r = self.rates(source.with_mag(0.0))
-        s = r["n_star"][None, :] * 10 ** (-0.4 * mags)[:, None]
-        t = self._exptime_formula(s, r["n_sky_pix"], r["dark_pix"], r["read_noise"],
-                                  r["n_pix"], float(snr), n_exp)
-        return self._select(t, wavelength)
+        sel = self._bin_mask(wavelength)
+        s = r["n_star"][sel][None, :] * 10 ** (-0.4 * mags)[:, None]
+        t = self._exptime_formula(s, r["n_sky_pix"][sel], r["dark_pix"], r["read_noise"],
+                                  r["n_pix"], positive("snr", snr, allow_zero=True), n_exp)
+        return self._reduce(t, wavelength)
 
     def reads_needed(self, source, exptime, margin=0.8):
         """Smallest ``n_exp`` keeping the brightest pixel below ``margin * full_well``

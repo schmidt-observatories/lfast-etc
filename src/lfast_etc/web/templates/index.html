@@ -123,7 +123,7 @@
       <tr><td>Bins with zero throughput (telluric cores, NaN)</td><td colspan="3">{{ "%.1f"|format(100 * summary.nan_fraction) }}%</td></tr>
       <tr><td>Wavelength bins</td><td colspan="3">{{ summary.n_bins }}</td></tr>
       <tr><td>Limiting {{ summary.limiting_mag_band }} mag ({{ summary.limiting_mag_system }}), SNR=10 in 1 hr</td>
-        <td colspan="3">{{ "%.2f"|format(summary.limiting_mag_snr10_1hr) }}</td></tr>
+        <td colspan="3">{% if summary.limiting_mag_snr10_1hr is none %}n/a{% else %}{{ "%.2f"|format(summary.limiting_mag_snr10_1hr) }}{% endif %}</td></tr>
     </table>
     <pre>{{ describe }}</pre>
     {% if plot_note %}<div class="note">{{ plot_note }}</div>{% endif %}

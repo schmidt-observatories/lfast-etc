@@ -1,8 +1,9 @@
 """Spectrograph + detector descriptions, loaded from TOML presets."""
-from dataclasses import dataclass, asdict
+import dataclasses
+from dataclasses import dataclass
 import tomllib
 
-from .constants import CONFIG_DIR
+from .constants import CONFIG_DIR, positive
 
 
 def list_instruments():
@@ -65,11 +66,22 @@ class Instrument:
     free_spectral_range_frac: float | None = None
     description: str = ""
 
+    def __post_init__(self):
+        for f in ("wavelength_min_nm", "wavelength_max_nm", "resolving_power", "pixels_per_resel",
+                  "spectrograph_efficiency", "slit_throughput", "full_well"):
+            setattr(self, f, positive(f, getattr(self, f)))
+        for f in ("dark_current", "read_noise", "min_exptime"):
+            setattr(self, f, positive(f, getattr(self, f), allow_zero=True))
+        if not callable(self.qe):
+            self.qe = positive("qe", self.qe)
+        if self.wavelength_max_nm <= self.wavelength_min_nm:
+            raise ValueError("wavelength_max_nm must exceed wavelength_min_nm")
+
     @classmethod
     def from_preset(cls, name, **overrides):
         """Load a bundled preset (see :func:`list_instruments`), optionally overriding fields."""
         path = CONFIG_DIR / f"{name}.toml"
-        if not path.exists():
+        if name not in list_instruments():
             raise ValueError(f"Unknown instrument {name!r}; available: {list_instruments()}")
         with open(path, "rb") as f:
             cfg = tomllib.load(f)["instrument"]
@@ -77,10 +89,8 @@ class Instrument:
         return cls(**cfg)
 
     def replace(self, **changes):
-        """Copy with some fields changed."""
-        d = asdict(self)
-        d.update(changes)
-        return Instrument(**d)
+        """Copy with some fields changed (``dataclasses.replace``)."""
+        return dataclasses.replace(self, **changes)
 
     def qe_at(self, wavelength_nm):
         return self.qe(wavelength_nm) if callable(self.qe) else self.qe

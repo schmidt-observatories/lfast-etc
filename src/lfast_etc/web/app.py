@@ -30,6 +30,10 @@ OVERRIDE_FIELDS = ("resolving_power", "pixels_per_resel", "spectrograph_efficien
 
 
 # ---- parsing -----------------------------------------------------------------
+PLACEHOLDERS = {n: {k: getattr(Instrument.from_preset(n), k) for k in OVERRIDE_FIELDS}
+                for n in list_instruments()}
+
+
 def _num(form, key, lo=None, hi=None, kind=float, required=True):
     raw = (form.get(key) or "").strip()
     if not raw:
@@ -37,9 +41,13 @@ def _num(form, key, lo=None, hi=None, kind=float, required=True):
             raise ValueError(f"'{key}' is required")
         return None
     try:
-        v = kind(float(raw)) if kind is int else kind(raw)
-    except ValueError:
-        raise ValueError(f"'{key}' must be a number, got {raw!r}")
+        v = float(raw)
+        if kind is int:
+            if v != int(v):
+                raise ValueError(f"'{key}' must be an integer, got {raw!r}")
+            v = int(v)
+    except ValueError as e:
+        raise ValueError(str(e) if "integer" in str(e) else f"'{key}' must be a number, got {raw!r}")
     if not math.isfinite(v):
         raise ValueError(f"'{key}' must be finite")
     if lo is not None and v < lo:
@@ -60,13 +68,13 @@ def build(form):
     """Parse a form/query mapping, run the ETC and return (etc, src, res, params)."""
     name = _choice(form, "instrument", list_instruments())
     overrides = {}
+    limits = {"resolving_power": 1e6, "pixels_per_resel": 1e4, "spectrograph_efficiency": 1.0,
+              "slit_throughput": 1.0, "qe": 1.0, "read_noise": 1e6, "dark_current": 1e6}
     for k in OVERRIDE_FIELDS:
-        v = _num(form, k, lo=0, required=False)
+        v = _num(form, k, lo=0, hi=limits.get(k), required=False)
         if v is not None:
             overrides[k] = v
-    if overrides.get("resolving_power") == 0 or overrides.get("pixels_per_resel") == 0:
-        raise ValueError("resolving power and pixels/resel must be > 0")
-    ins = Instrument.from_preset(name, **overrides)
+    ins = Instrument.from_preset(name, **overrides)   # Instrument validates > 0 where required
 
     combine = _choice(form, "combine", ("auto", "fiber", "independent"))
     tel = Telescope(n_telescopes=_num(form, "n_telescopes", lo=1, hi=100000, kind=int),
@@ -109,7 +117,7 @@ def summarize(etc, src, res):
         "below_min_exptime_fraction": s["below_min_exptime_fraction"],
         "nan_fraction": float(np.mean(np.isnan(res.snr))),
         "n_bins": s["n_bins"],
-        "limiting_mag_snr10_1hr": float(lim),
+        "limiting_mag_snr10_1hr": None if not np.isfinite(lim) else float(lim),
         "limiting_mag_band": src.band,
         "limiting_mag_system": src.system,
     }
@@ -194,8 +202,7 @@ def create_app():
                 ctx["mode_label"] = mode
             except Exception as e:  # never 500 on user input
                 ctx["error"] = str(e) or e.__class__.__name__
-        presets = {n: Instrument.from_preset(n) for n in ctx["instruments"]}
-        ctx["placeholders"] = {n: {k: getattr(p, k) for k in OVERRIDE_FIELDS} for n, p in presets.items()}
+        ctx["placeholders"] = PLACEHOLDERS
         return render_template("index.html", form=form, **ctx)
 
     @app.route("/api/calc")

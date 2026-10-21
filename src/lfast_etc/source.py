@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.special import erf
 
-from .constants import H_PLANCK, C_LIGHT, K_BOLTZMANN
+from .constants import H_PLANCK, C_LIGHT, K_BOLTZMANN, positive
 
 # Box bandpasses: centre [nm], width [nm], Vega zero point [Jy].
 # V follows the reference LFAST notebook (Bessell et al. 1998 rounded);
@@ -28,10 +28,18 @@ BANDS = {
 AB_ZP_JY = 3631.0
 
 
+def _zero_point(band, system):
+    if band not in BANDS:
+        raise ValueError(f"band must be one of {list(BANDS)}, got {band!r}")
+    if system.upper() not in ("AB", "VEGA"):
+        raise ValueError(f"system must be 'Vega' or 'AB', got {system!r}")
+    return AB_ZP_JY if system.upper() == "AB" else BANDS[band][2]
+
+
 def band_flux_W_m2(mag, band, system="Vega"):
     """Band-integrated flux [W/m^2] for an apparent magnitude in a box band."""
-    center, width, zp_vega = BANDS[band]
-    zp = AB_ZP_JY if system.upper() == "AB" else zp_vega
+    zp = _zero_point(band, system)
+    center, width, _ = BANDS[band]
     f_nu = zp * 1e-26 * 10 ** (-0.4 * mag)                  # W/m^2/Hz
     delta_nu = C_LIGHT * (width * 1e-9) / (center * 1e-9) ** 2
     return f_nu * delta_nu
@@ -46,7 +54,7 @@ def planck_W_m2_nm_sr(wavelength_nm, teff):
     return b * 1e-9
 
 
-@dataclass
+@dataclass(eq=False)
 class Source:
     """A point source with a known SED shape and a magnitude.
 
@@ -63,8 +71,7 @@ class Source:
     _scale: float = field(default=None, repr=False)
 
     def __post_init__(self):
-        if self.band not in BANDS:
-            raise ValueError(f"band must be one of {list(BANDS)}")
+        _zero_point(self.band, self.system)
         self.mag = float(self.mag)
         c, w, _ = BANDS[self.band]
         grid = np.linspace(c - w / 2, c + w / 2, 2001)
@@ -77,6 +84,7 @@ class Source:
     @classmethod
     def blackbody(cls, teff, mag, band="V", system="Vega"):
         """Blackbody of temperature ``teff`` [K]."""
+        teff = positive("teff", teff)
         return cls(lambda wl: planck_W_m2_nm_sr(wl, teff), mag, band, system,
                    label=f"blackbody {teff:.0f} K")
 
@@ -106,6 +114,8 @@ class Source:
             raise ValueError("wavelength_nm and flux must be 1-D arrays of equal length")
         order = np.argsort(wl)
         wl, fl = wl[order], fl[order]
+        if flux_unit not in ("flam", "fnu", "W/m2/nm"):
+            raise ValueError("flux_unit must be 'flam', 'fnu' or 'W/m2/nm'")
         if flux_unit == "fnu":
             fl = fl / wl ** 2
         shape = lambda w: np.interp(w, wl, fl, left=0.0, right=0.0)
@@ -113,7 +123,7 @@ class Source:
             c, w, _ = BANDS[band]
             grid = np.linspace(c - w / 2, c + w / 2, 2001)
             f_band = np.trapezoid(shape(grid), grid)
-            zp = AB_ZP_JY if system.upper() == "AB" else BANDS[band][2]
+            zp = _zero_point(band, system)
             delta_nu = C_LIGHT * (w * 1e-9) / (c * 1e-9) ** 2
             mag = -2.5 * np.log10(f_band / delta_nu / (zp * 1e-26))
         elif mag is None:
@@ -165,10 +175,10 @@ class Source:
     def magnitude(self, band, system=None):
         """Synthetic magnitude of this source in another box band."""
         system = system or self.system
-        c, w, zp_vega = BANDS[band]
+        zp = _zero_point(band, system)
+        c, w, _ = BANDS[band]
         grid = np.linspace(c - w / 2, c + w / 2, 2001)
         f_band = np.trapezoid(self.flux(grid), grid)
-        zp = AB_ZP_JY if system.upper() == "AB" else zp_vega
         delta_nu = C_LIGHT * (w * 1e-9) / (c * 1e-9) ** 2
         return -2.5 * np.log10(f_band / delta_nu / (zp * 1e-26))
 

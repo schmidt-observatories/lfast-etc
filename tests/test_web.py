@@ -55,3 +55,17 @@ def test_api_nan_bins_are_null(client):
     d = r.get_json()
     assert any(v is None for v in d["exptime"])
     assert "below_min_exptime" in d
+
+
+def test_web_rejects_huge_resolving_power_and_fractional_telescopes(client):
+    r = client.get("/api/calc?instrument=cshell_r43000&resolving_power=1e9&mode=snr&exptime=300")
+    assert r.status_code == 400
+    r = client.get("/api/calc?instrument=bench_r1800&n_telescopes=20.7&mode=snr&exptime=300")
+    assert r.status_code == 400 and b"integer" in r.data
+
+
+def test_web_independent_mode_and_n_exp(client):
+    r = client.post("/", data=dict(instrument="cshell_r18000", n_telescopes="20", fiber="50um", combine="independent",
+                                   source_type="blackbody", teff="4500", mag="9", band="H", system="Vega",
+                                   mode="snr", exptime="300", n_exp="3", wmin="1550", wmax="1560"))
+    assert r.status_code == 200 and b"Summary" in r.data and b"Input error" not in r.data

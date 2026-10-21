@@ -11,6 +11,8 @@ throughput model; the test-suite reproduces that notebook to 1e-6.
 
 ## Install
 
+Requires Python >= 3.11 and numpy >= 2.0.
+
 ```sh
 git clone git@github.com:schmidt-observatories/lfast-etc.git
 cd lfast-etc
@@ -72,6 +74,7 @@ src/lfast_etc/data/   throughput curves, SkyCalc table, instrument presets (TOML
 src/lfast_etc/web/    Flask + Bokeh browser ETC
 notebooks/            executed example notebooks
 docs/                 Sphinx site
-input/                original hackathon materials (reference notebook and data)
+input/                original hackathon materials (reference notebook; the data files are the
+                      same bytes as src/lfast_etc/data, kept here for provenance)
 tests/                pytest, including the regression test against the reference notebook
 ```

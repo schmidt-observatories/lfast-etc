@@ -110,6 +110,10 @@ def test_instrument_presets_load_and_override():
     ins = Instrument.from_preset("bench_r1800", resolving_power=5000)
     assert ins.resolving_power == 5000
     assert ins.replace(read_noise=1).read_noise == 1
+    with pytest.raises(ValueError):
+        Instrument.from_preset("../config/bench_r1800")
+    with pytest.raises(ValueError):
+        Instrument.from_preset("bench_r1800", resolving_power=-5)
 
 
 def test_sky_binning_vectorised_matches_loop():
@@ -173,3 +177,60 @@ def test_uniform_grid_and_empty_range():
     assert np.allclose(np.diff(etc.wavelength), 5.0)
     with pytest.raises(ValueError):
         LFASTETC("bench_r1800", wavelength_min_nm=900)
+
+
+def test_validation_rejects_garbage():
+    src = Source.blackbody(5800, 15)
+    etc = LFASTETC("bench_r1800")
+    for bad in (dict(n_exp=0), dict(n_exp=2.5)):
+        with pytest.raises(ValueError):
+            etc.snr(src, 100, **bad)
+    with pytest.raises(ValueError):
+        etc.snr(src, -10)
+    with pytest.raises(ValueError):
+        etc.exptime(src, snr=-5)
+    with pytest.raises(ValueError):
+        Telescope(2.5)
+    with pytest.raises(ValueError):
+        Telescope(20, diameter_m=-1)
+    with pytest.raises(ValueError):
+        Source.blackbody(5800, 10, system="bogus")
+    with pytest.raises(ValueError):
+        Source.from_arrays([400, 500], [1, 1], flux_unit="jy", mag=10)
+    with pytest.raises(ValueError):
+        LFASTETC("bench_r1800", telescope=Telescope(5), n_telescopes=20)
+    with pytest.raises(ValueError):
+        LFASTETC(Instrument.from_preset("bench_r1800", resolving_power=1e6), wavelength_min_nm=1, grid="uniform", step_nm=1e-9)
+    with pytest.raises(ValueError):
+        etc.snr_grid(src, [10], [10], wavelength=(500, 600, 700))
+    with pytest.raises(ValueError):
+        LFASTETC("bench_r1800", wavelength_min_nm=0.0)        # 0 is rejected, not treated as "unset"
+
+
+def test_summary_types_exptime_vs_mag_callable_qe_and_plots():
+    import matplotlib
+    matplotlib.use("Agg")
+    from lfast_etc.plotting import plot_snr_map, plot_limiting_magnitude
+    src = Source.blackbody(5800, 15)
+    etc = LFASTETC("bench_r1800")
+    s = etc.snr(src, 100).summary()
+    assert type(s["snr"][50]) is float and set(s["snr"]) == {10, 50, 90}
+    t = etc.exptime_vs_mag(src, [10, 15, 20], snr=30, wavelength=(500, 600))
+    assert t.shape == (3,) and np.all(np.diff(t) > 0)
+    direct = etc.exptime(src.with_mag(15), snr=30)
+    m = (etc.wavelength >= 500) & (etc.wavelength <= 600)
+    assert abs(t[1] - np.nanmedian(direct.exptime[m])) < 1e-9
+    qe_curve = lambda w: 0.9 - 0.5 * (np.asarray(w) - 412) / 300
+    e2 = LFASTETC(Instrument.from_preset("bench_r1800", qe=qe_curve))
+    assert e2.throughputs()["qe"][0] > e2.throughputs()["qe"][-1]
+    ext = LFASTETC("bench_r1800", apply_extinction=True)
+    assert np.all(ext.throughputs()["star"] <= etc.throughputs()["star"])
+    assert LFASTETC("bench_r1800", sky=Sky(scale=0.5)).sky_rate_per_pixel()[0] == pytest.approx(0.5 * etc.sky_rate_per_pixel()[0])
+    assert abs(Source.flat(20, "V", "AB", kind="flam").magnitude("V", "AB") - 20) < 1e-9
+    wl = np.linspace(380, 900, 100)
+    absolute = Source.from_arrays(wl, np.full_like(wl, 1e-15), flux_unit="W/m2/nm", band="V")
+    assert abs(absolute.magnitude("V") - absolute.mag) < 1e-9
+    grid = etc.snr_grid(src, [12, 16], [10, 100])
+    plot_snr_map([12, 16], [10, 100], grid)
+    plot_limiting_magnitude(etc, src, [60, 600], 10)
+    direct.plot(); direct.plot(what="n_star"); direct.plot_rates()

@@ -5,7 +5,8 @@ sys.path.insert(0, os.path.abspath("../src"))
 project = "lfast-etc"
 copyright = "2026, Gudmundur Stefansson / Schmidt Sciences"
 author = "Gudmundur Stefansson"
-release = "0.1.0"
+import importlib.metadata
+release = importlib.metadata.version("lfast-etc")
 
 extensions = [
     "sphinx.ext.autodoc", "sphinx.ext.autosummary", "sphinx.ext.napoleon",

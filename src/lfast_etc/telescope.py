@@ -16,7 +16,7 @@ fiber uniformly sees ``K_opt / eta_fib``.
 from dataclasses import dataclass, field
 import numpy as np
 
-from .constants import THROUGHPUT_DIR
+from .constants import THROUGHPUT_DIR, positive
 
 # fiber core -> (on-sky diameter [arcsec], throughput-file suffix, default combine mode)
 FIBERS = {
@@ -55,14 +55,18 @@ class Telescope:
     combine: str | None = None
     diameter_m: float = 0.726
     fiber_diameter_arcsec: float | None = None
-    _kopt: tuple = field(default=None, repr=False, compare=False)
-    _eta: tuple = field(default=None, repr=False, compare=False)
+    _kopt: tuple = field(init=False, default=None, repr=False, compare=False)
+    _eta: tuple = field(init=False, default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if self.fiber not in FIBERS:
             raise ValueError(f"fiber must be one of {list(FIBERS)}, got {self.fiber!r}")
-        if self.n_telescopes < 1:
-            raise ValueError("n_telescopes must be >= 1")
+        if int(self.n_telescopes) != self.n_telescopes or self.n_telescopes < 1:
+            raise ValueError(f"n_telescopes must be a positive integer, got {self.n_telescopes!r}")
+        self.n_telescopes = int(self.n_telescopes)
+        self.diameter_m = positive("diameter_m", self.diameter_m)
+        if self.fiber_diameter_arcsec is not None:
+            self.fiber_diameter_arcsec = positive("fiber_diameter_arcsec", self.fiber_diameter_arcsec)
         spec = FIBERS[self.fiber]
         if self.combine is None:
             self.combine = spec["combine"]
