@@ -106,6 +106,8 @@ def summarize(etc, src, res):
         "exptime": {str(k): float(v) for k, v in s["exptime"].items()},
         "snr": {str(k): float(v) for k, v in s["snr"].items()},
         "saturated_fraction": s["saturated_fraction"],
+        "below_min_exptime_fraction": s["below_min_exptime_fraction"],
+        "nan_fraction": float(np.mean(np.isnan(res.snr))),
         "n_bins": s["n_bins"],
         "limiting_mag_snr10_1hr": float(lim),
         "limiting_mag_band": src.band,
@@ -206,10 +208,12 @@ def create_app():
             return jsonify(error=str(e) or e.__class__.__name__), 400
         step = _decimate(len(res.wavelength), MAX_API_POINTS)
         sl = slice(None, None, step)
+        nan_to_none = lambda a: [None if np.isnan(v) else float(v) for v in a]   # NaN is not JSON
         return jsonify(
             mode=mode, decimation=step, describe=etc.describe(), source=src.describe(),
-            wavelength=res.wavelength[sl].tolist(), exptime=res.exptime[sl].tolist(),
-            snr=res.snr[sl].tolist(), saturated=res.saturated[sl].tolist(),
+            wavelength=res.wavelength[sl].tolist(), exptime=nan_to_none(res.exptime[sl]),
+            snr=nan_to_none(res.snr[sl]), saturated=res.saturated[sl].tolist(),
+            below_min_exptime=res.below_min_exptime[sl].tolist(),
             summary=summarize(etc, src, res),
         )
 

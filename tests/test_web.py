@@ -46,3 +46,12 @@ def test_api_calc_json(client):
 def test_api_calc_bad_input(client):
     r = client.get("/api/calc?mag=abc")
     assert r.status_code == 400 and "error" in r.get_json()
+
+
+def test_api_nan_bins_are_null(client):
+    r = client.get("/api/calc?instrument=cshell_r18000&mag=10&teff=5800&band=J&mode=exptime&snr=10")
+    assert r.status_code == 200
+    assert b"NaN" not in r.data
+    d = r.get_json()
+    assert any(v is None for v in d["exptime"])
+    assert "below_min_exptime" in d
