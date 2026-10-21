@@ -146,23 +146,26 @@ curve is not a single exposure. The structure is the throughput curve $K_{opt}$ 
 coupling) on top of the sky."""),
 md("""## Scaling the number of telescopes
 
-The 18 um fibers go through an $N$-to-1 combiner: $N_*$ and $N_{sky}$ both scale with $N$ while the
-detector terms do not, so the gain is *better* than $\\sqrt{N}$ when read noise or dark current
-matter. The 50 um fiber bypasses the combiner (one spectrum per telescope, SNR $\\propto\\sqrt N$)
-but has ~2x the point-source coupling and a ~7.7x larger sky aperture."""),
+The 18 um fibers go through a 20-to-1 combiner: within one array $N_*$ and $N_{sky}$ both scale with
+$N$ while the detector terms do not, so the gain is *better* than $\\sqrt{N}$ when read noise or dark
+current matter. Beyond 20 telescopes the ETC assumes one combiner input per 20 telescopes, co-added
+incoherently (`telescopes_per_input=20`; the dotted curve shows an idealised single combiner). The
+50 um fiber bypasses the combiner (one spectrum per telescope, SNR $\\propto\\sqrt N$) but has ~2x the
+point-source coupling and a ~7.7x larger sky aperture."""),
 code("""ns = np.array([1, 2, 4, 8, 12, 16, 20, 30, 40, 60, 80, 100, 150, 200])
 rows = {}
-for fiber, combine in (("18um", "fiber"), ("18um", "independent"), ("50um", "independent")):
+for fiber, combine, tpi in (("18um", "fiber", 20), ("18um", "fiber", None), ("18um", "independent", 20), ("50um", "independent", 20)):
     if True:
         lim = []
         for n in ns:
-            e = LFASTETC("bench_r1800", telescope=Telescope(n_telescopes=n, fiber=fiber, combine=combine))
+            e = LFASTETC("bench_r1800", telescope=Telescope(n_telescopes=n, fiber=fiber, combine=combine, telescopes_per_input=tpi))
             lim.append(e.limiting_magnitude(gstar, exptime=900, snr=10, wavelength=(500, 650)))
-        rows[(fiber, combine)] = np.array(lim)
+        rows[(fiber, combine, tpi)] = np.array(lim)
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-for (fiber, combine), lim in rows.items():
-    ax.plot(ns, lim, marker='o', ms=3, label=f"{fiber}, {combine}")
+for (fiber, combine, tpi), lim in rows.items():
+    ax.plot(ns, lim, marker='o', ms=3, ls=':' if tpi is None else '-',
+            label=f"{fiber}, {combine}" + (" (ideal single combiner)" if tpi is None else ""))
 ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting V (SNR=10/resel, 900 s)")
 ax.axvline(20, color='0.4', ls='--'); ax.text(21, ax.get_ylim()[0]+0.2, "nominal 20", fontsize=8)
 ax.legend(fontsize=8); ax.set_title("Bench R~1800, median over 500-650 nm", fontsize=9);"""),

@@ -46,6 +46,17 @@ def test_fiber_combine_scales_signal_linearly_and_independent_as_sqrt():
     np.testing.assert_allclose(s20, np.sqrt(20) * s1, rtol=1e-10)
 
 
+def test_multi_array_inputs():
+    src = Source.blackbody(5800, mag=20, band="V")
+    one = LFASTETC("bench_r1800", telescope=Telescope(20))
+    ten = LFASTETC("bench_r1800", telescope=Telescope(200))
+    assert ten.telescope.n_inputs == 10 and Telescope(201).n_inputs == 11
+    np.testing.assert_allclose(ten.snr(src, 100).snr, np.sqrt(10) * one.snr(src, 100).snr, rtol=1e-10)
+    ideal = LFASTETC("bench_r1800", telescope=Telescope(200, telescopes_per_input=None))
+    assert np.nanmedian(ideal.snr(src, 100).snr) > np.nanmedian(ten.snr(src, 100).snr)
+    assert abs(Telescope(190).equivalent_diameter_m - 10.0) < 0.02
+
+
 def test_limiting_magnitude_consistent_with_snr():
     etc = LFASTETC("bench_r1800", wavelength_min_nm=500, wavelength_max_nm=600)
     src = Source.blackbody(5800, mag=15, band="V")

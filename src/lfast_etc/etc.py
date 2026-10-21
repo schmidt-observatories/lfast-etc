@@ -14,10 +14,12 @@ Per-bin logic (identical to the reference LFAST ETC notebook, 2026-10-12):
 
 Telescope combination (:class:`~lfast_etc.telescope.Telescope`):
 
-* ``combine="fiber"``: ``N`` fibers merge into one spectrograph input, so
-  ``N_star`` and ``N_sky`` scale with ``N`` and the detector terms do not.
+* ``combine="fiber"``: fibers merge in groups of ``telescopes_per_input``
+  (20) into one spectrograph input each, so ``N_star`` and ``N_sky`` scale
+  with ``N`` while the detector terms scale with the number of inputs
+  ``ceil(N / 20)``; beyond one array ``SNR ~ sqrt(n_inputs)``.
 * ``combine="independent"``: each telescope yields its own spectrum; the
-  detector noise terms also scale with ``N`` and ``SNR ~ sqrt(N)``.
+  detector noise terms scale with ``N`` and ``SNR ~ sqrt(N)``.
 """
 from dataclasses import dataclass, field
 import numpy as np
@@ -191,7 +193,7 @@ class LFASTETC:
     @property
     def _n_detector(self):
         """How many independent detector read-outs contribute noise."""
-        return self.telescope.n_telescopes if self.telescope.combine == "independent" else 1
+        return self.telescope.n_inputs
 
     def _compute_throughputs(self):
         wl = self.wavelength

@@ -82,8 +82,11 @@ solved analytically; ``snr_grid`` evaluates the SNR on a (magnitude, exposure) g
 Telescope combination
 ---------------------
 
-* ``combine="fiber"`` (18 um fibers through the N-to-1 combiner): :math:`N_*` and :math:`N_{sky}`
-  scale with :math:`N`, dark current and read noise are paid once.
+* ``combine="fiber"`` (18 um fibers through the 20-to-1 combiner): :math:`N_*` and :math:`N_{sky}`
+  scale with :math:`N`, dark current and read noise are paid once per combiner input,
+  :math:`n_{in} = \lceil N / 20 \rceil` (``telescopes_per_input``). Beyond one array the SNR
+  therefore grows as :math:`\sqrt{n_{in}}` on top of the single-array value; set
+  ``telescopes_per_input=None`` for an idealised single combiner.
 * ``combine="independent"`` (50 um fibers, one spectrum per telescope, co-added afterwards):
   :math:`D \to N D` and :math:`RN^2 \to N\,RN^2`, so :math:`\mathrm{SNR} = \sqrt{N}\,\mathrm{SNR}_1`
   exactly.

@@ -38,12 +38,18 @@ class Telescope:
         N-to-1 fiber combiner (``combine="fiber"``); the 50 um fiber does not,
         so each telescope delivers its own spectrum (``combine="independent"``).
     combine : {"fiber", "independent", None}
-        How the unit telescopes are combined. ``"fiber"``: all fibers are
-        merged into one spectrograph input, so signal *and* sky per pixel scale
-        with ``n_telescopes`` while dark current and read noise do not.
-        ``"independent"``: every telescope produces its own spectrum which are
-        co-added after the fact; SNR scales as ``sqrt(n_telescopes)``.
-        ``None`` picks the default for the fiber.
+        How the unit telescopes are combined. ``"fiber"``: fibers are merged
+        in groups of ``telescopes_per_input`` into one spectrograph input each
+        (one input for the nominal 20-telescope array), so signal *and* sky per
+        pixel scale with the group size while dark current and read noise are
+        paid once per input. ``"independent"``: every telescope produces its
+        own spectrum which are co-added after the fact; SNR scales as
+        ``sqrt(n_telescopes)``. ``None`` picks the default for the fiber.
+    telescopes_per_input : int or None
+        Size of one fiber combiner (20 for LFAST). Arrays larger than this
+        are modelled as ``ceil(n_telescopes / telescopes_per_input)``
+        independent inputs co-added incoherently. ``None`` means one input
+        regardless of ``n_telescopes`` (an idealised single combiner).
     diameter_m : float
         Unit telescope clear-aperture diameter. The 15.5 cm central obscuration
         is already in the throughput budget; do not double count it.
@@ -55,6 +61,7 @@ class Telescope:
     combine: str | None = None
     diameter_m: float = 0.726
     fiber_diameter_arcsec: float | None = None
+    telescopes_per_input: int | None = 20
     _kopt: tuple = field(init=False, default=None, repr=False, compare=False)
     _eta: tuple = field(init=False, default=None, repr=False, compare=False)
 
@@ -65,6 +72,10 @@ class Telescope:
             raise ValueError(f"n_telescopes must be a positive integer, got {self.n_telescopes!r}")
         self.n_telescopes = int(self.n_telescopes)
         self.diameter_m = positive("diameter_m", self.diameter_m)
+        if self.telescopes_per_input is not None:
+            if int(self.telescopes_per_input) != self.telescopes_per_input or self.telescopes_per_input < 1:
+                raise ValueError("telescopes_per_input must be a positive integer or None")
+            self.telescopes_per_input = int(self.telescopes_per_input)
         if self.fiber_diameter_arcsec is not None:
             self.fiber_diameter_arcsec = positive("fiber_diameter_arcsec", self.fiber_diameter_arcsec)
         spec = FIBERS[self.fiber]
@@ -85,6 +96,20 @@ class Telescope:
     def area_m2(self):
         """Collecting area of one unit telescope [m^2]."""
         return np.pi * (self.diameter_m / 2.0) ** 2
+
+    @property
+    def n_inputs(self):
+        """Number of independent spectrograph inputs (detector read-outs)."""
+        if self.combine == "independent":
+            return self.n_telescopes
+        if self.telescopes_per_input is None:
+            return 1
+        return -(-self.n_telescopes // self.telescopes_per_input)
+
+    @property
+    def equivalent_diameter_m(self):
+        """Diameter of a single telescope with the same collecting area [m]."""
+        return self.diameter_m * np.sqrt(self.n_telescopes)
 
     @property
     def total_area_m2(self):
@@ -120,5 +145,6 @@ class Telescope:
 
     def describe(self):
         return (f"{self.n_telescopes} x {self.diameter_m:.3f} m telescopes "
-                f"(total area {self.total_area_m2:.2f} m^2), {self.fiber} fiber "
-                f"({self.fiber_diameter_arcsec:.2f}\" on sky), combine={self.combine}")
+                f"(total area {self.total_area_m2:.2f} m^2, {self.equivalent_diameter_m:.1f} m equivalent), "
+                f"{self.fiber} fiber ({self.fiber_diameter_arcsec:.2f}\" on sky), "
+                f"combine={self.combine}, {self.n_inputs} input(s)")
