@@ -30,20 +30,18 @@ Presets are TOML files in ``src/lfast_etc/data/config``; copy one to add a new c
 The CSHELL slit-loss values and the detector full wells are placeholders flagged in the files.
 Fields (all under ``[instrument]``):
 
-==========================  ========================================================
-``name``, ``description``   strings
-``wavelength_min_nm/max``   bandpass of the configuration [nm]
-``resolving_power``         R = lambda / delta_lambda
-``pixels_per_resel``        pixels in the extraction aperture per resel (``n_pix``)
-``spectrograph_efficiency`` optical throughput of the spectrograph, excluding QE and slit
-``slit_throughput``         extra factor for slit modes (1 for the bare fiber)
-``qe``                      detector QE (scalar in TOML; pass a callable in Python for a curve)
-``dark_current``            e-/s/pixel
-``read_noise``              e-/pixel per read
-``full_well``               e-/pixel, for the saturation flag
-``min_exptime``             shortest read [s] for which ``read_noise`` holds (flagged, not enforced)
-``free_spectral_range_frac`` FSR / lambda for echelles (informational)
-==========================  ========================================================
+* ``name``, ``description``: strings
+* ``wavelength_min_nm``, ``wavelength_max_nm``: bandpass of the configuration [nm]
+* ``resolving_power``: R = lambda / delta_lambda
+* ``pixels_per_resel``: pixels in the extraction aperture per resel (``n_pix``)
+* ``spectrograph_efficiency``: optical throughput of the spectrograph, excluding QE and slit
+* ``slit_throughput``: extra factor for slit modes (1 for the bare fiber)
+* ``qe``: detector QE (scalar in TOML; pass a callable in Python for a curve)
+* ``dark_current``: e-/s/pixel
+* ``read_noise``: e-/pixel per read
+* ``full_well``: e-/pixel, for the saturation flag
+* ``min_exptime``: shortest read [s] for which ``read_noise`` holds (flagged, not enforced)
+* ``free_spectral_range_frac``: FSR / lambda for echelles (informational)
 
 **Telescope** -- the array. ``n_telescopes`` is a free parameter.
 
