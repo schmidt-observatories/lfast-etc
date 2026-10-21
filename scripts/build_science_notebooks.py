@@ -13,7 +13,15 @@ plt.rcParams.update({"font.size": 11, "axes.titlesize": 10, "legend.fontsize": 9
 def tel(n, telescopes_per_input=20):
     return Telescope(n_telescopes=int(n), fiber="18um", combine="fiber", telescopes_per_input=telescopes_per_input)
 def deq(n):
-    return 0.726*np.sqrt(n)'''
+    return 0.726*np.sqrt(n)
+from matplotlib.ticker import FixedLocator, FixedFormatter, NullFormatter
+def deq_axis(ax):
+    """Top axis in equivalent diameter with plain tick labels."""
+    sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2))
+    ticks = [3, 5, 10, 20, 30]
+    sec.xaxis.set_major_locator(FixedLocator(ticks)); sec.xaxis.set_major_formatter(FixedFormatter([str(t) for t in ticks]))
+    sec.xaxis.set_minor_formatter(NullFormatter()); sec.set_xlabel("Equivalent diameter (m)")
+    return sec'''
 
 NB = {}
 
@@ -68,7 +76,7 @@ for ax, (label, (preset, src, kw, win)) in zip(axes, cases.items()):
         ax.axvline(n, color='0.6', ls='--', lw=0.8)
     ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel(f"Limiting {src.band} (SNR=10/resel)")
     ax.set_title(label + "\\n(dotted: ideal single combiner)", fontsize=9); ax.legend(fontsize=8)
-    sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2)); sec.set_xlabel("Equivalent diameter (m)")
+    deq_axis(ax)
 plt.tight_layout(); fig.savefig(FIG + "limiting_mag_vs_N.pdf")"""),
 code("""print("Limiting magnitude, SNR=10 per resel:")
 for (label, exp), d in summary.items():
@@ -148,7 +156,7 @@ for mag, txt in ((20.5, "ZTF single visit"), (24.5, "LSST single visit r")):
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
 ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Classification depth (R mag)")
 ax.set_title("SNR=5 per R=300 bin, 450-650 nm, 6000 K SED, grey sky", fontsize=9); ax.legend()
-sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2)); sec.set_xlabel("Equivalent diameter (m)")
+deq_axis(ax)
 fig.savefig(FIG + "classification_depth_vs_N.pdf")
 for exp, d in depth.items():
     print(f"{exp:5d} s: " + "  ".join(f"N={n}: R<{d[n]:.1f}" for n in (20, 200, 1720)))"""),
@@ -172,7 +180,7 @@ for day, color in ((1, 'C0'), (2, 'C1'), (3, 'C3')):
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
 ax.set_xscale('log'); ax.set_yscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Classification horizon (Mpc)")
 ax.set_title("AT2017gfo-like kilonova, 30 min, SNR=5 per R=300 bin", fontsize=9); ax.legend()
-sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2)); sec.set_xlabel("Equivalent diameter (m)")
+deq_axis(ax)
 fig.savefig(FIG + "kilonova_horizon_vs_N.pdf")
 for day, d in horizon.items():
     print(f"day {day}: " + "  ".join(f"N={n}: {d[n]:5.0f} Mpc" for n in (20, 200, 1720)))"""),
@@ -255,7 +263,7 @@ for exp, color in ((900, 'C0'), (3600, 'C1')):
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
 ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting V (SNR=30/resel, 500-560 nm)")
 ax.set_title("Bench R~1800, 4500 K giant", fontsize=9); ax.legend()
-sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2)); sec.set_xlabel("Equivalent diameter (m)")
+deq_axis(ax)
 fig.savefig(FIG + "metallicity_depth_vs_N.pdf")
 for exp, d in lims.items():
     print(f"{exp:5d} s: " + "  ".join(f"N={n}: V<{d[n]:.1f}" for n in (20, 200, 1720)))"""),
@@ -323,7 +331,7 @@ for exp, color in ((10, 'C3'), (60, 'C0'), (600, 'C1')):
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
 ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting V (SNR=20/resel at Halpha)")
 ax.set_title("Bench R~1800, 3300 K", fontsize=9); ax.legend()
-sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2)); sec.set_xlabel("Equivalent diameter (m)")
+deq_axis(ax)
 fig.savefig(FIG + "flare_cadence_depth_vs_N.pdf")
 for exp, d in lims.items():
     print(f"{exp:4d} s: " + "  ".join(f"N={n}: V<{d[n]:.1f}" for n in (20, 200, 1720)))"""),
@@ -414,7 +422,7 @@ for depth, color in ((0.005, 'C0'), (0.01, 'C1'), (0.03, 'C3')):
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
 ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Faintest host J (5 sigma, 1 transit)")
 ax.set_title("CSHELL R=43k, He 10830, 4800 K host, 2 h transit", fontsize=9); ax.legend()
-sec = ax.secondary_xaxis('top', functions=(deq, lambda d: (d/0.726)**2)); sec.set_xlabel("Equivalent diameter (m)")
+deq_axis(ax)
 fig.savefig(FIG + "he10830_reach_vs_N.pdf")
 for depth, d in reach.items():
     print(f"{100*depth:4.1f}% line: " + "  ".join(f"N={n}: J<{d[n]:.1f}" for n in (20, 200, 1720)))"""),
