@@ -25,7 +25,11 @@ class Instrument:
     resolving_power : float
         ``R = lambda / delta_lambda``.
     pixels_per_resel : float
-        Number of detector pixels spanning one resolution element.
+        Number of detector pixels in the extraction aperture of one
+        resolution element (Howell's ``n_pix``). The bundled presets follow
+        the reference notebook and count the dispersion direction only
+        (2.2 / 2.5); multiply by the fiber-image height in pixels once that
+        is known for 1x1 binning.
     spectrograph_efficiency : float
         Spectrograph optical throughput (``S_opt``), excluding slit losses and QE.
     slit_throughput : float
@@ -39,7 +43,9 @@ class Instrument:
     full_well : float
         e-/pixel saturation level (used for the saturation flag only).
     min_exptime : float
-        Shortest meaningful exposure [s] (e.g. Fowler-sampling minimum).
+        Shortest exposure [s] for which ``read_noise`` applies (e.g. the
+        Fowler-sampling minimum). Results flag reads shorter than this in
+        ``ETCResult.below_min_exptime``.
     free_spectral_range_frac : float or None
         ``FSR / lambda`` for echelle instruments; a single setting covers only
         ``lambda * free_spectral_range_frac``. Informational.

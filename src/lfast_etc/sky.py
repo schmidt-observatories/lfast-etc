@@ -1,5 +1,6 @@
 """Sky background from an ESO SkyCalc table."""
 from functools import lru_cache
+from pathlib import Path
 import numpy as np
 from astropy.io import fits
 
@@ -23,8 +24,12 @@ class Sky:
     """Sky radiance and transmission from a SkyCalc FITS table.
 
     The bundled table is Kitt Peak-like (2640 m, August, airmass 1.3, PWV 2.5
-    mm, moon 45 deg away at 45 deg altitude, R=20,000 sampling). Generate your
-    own at https://www.eso.org/observing/etc/skycalc/ for other conditions.
+    mm, moon 45 deg away at 45 deg altitude, R=20,000 sampling). Resels
+    narrower than the table sampling (R > 20,000, i.e. the CSHELL presets)
+    fall back to the nearest sample, so airglow lines are pre-smoothed to
+    R=20,000. Generate your own table at
+    https://www.eso.org/observing/etc/skycalc/ for other conditions or a
+    finer grid.
 
     Parameters
     ----------
@@ -67,4 +72,4 @@ class Sky:
         return np.interp(wavelength_nm, self.wavelength_nm, self._trans)
 
     def describe(self):
-        return f"SkyCalc table {self.path.split('/')[-1]} x {self.scale:g}"
+        return f"SkyCalc table {Path(self.path).name} x {self.scale:g}"

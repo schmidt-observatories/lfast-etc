@@ -12,6 +12,8 @@ from .constants import H_PLANCK, C_LIGHT, K_BOLTZMANN
 # Box bandpasses: centre [nm], width [nm], Vega zero point [Jy].
 # V follows the reference LFAST notebook (Bessell et al. 1998 rounded);
 # the rest are Bessell et al. 1998 / Bessell 2005. "AB" uses 3631 Jy in every band.
+# The band width in frequency is approximated as c*dlam/lam0^2 (as in the
+# reference notebook); the exact c*dlam/(lam_lo*lam_hi) differs by ~1%.
 BANDS = {
     "U": (366.0, 66.0, 1790.0),
     "B": (438.0, 94.0, 4063.0),
@@ -52,7 +54,7 @@ class Source:
     Gaussian spectral lines with :meth:`add_line`.
     """
     shape: object                     # callable wavelength_nm -> relative F_lambda
-    mag: float
+    mag: float                        # continuum magnitude (lines added later are not renormalised)
     band: str = "V"
     system: str = "Vega"
     label: str = "source"
@@ -62,6 +64,7 @@ class Source:
     def __post_init__(self):
         if self.band not in BANDS:
             raise ValueError(f"band must be one of {list(BANDS)}")
+        self.mag = float(self.mag)
         c, w, _ = BANDS[self.band]
         grid = np.linspace(c - w / 2, c + w / 2, 2001)
         integral = np.trapezoid(self.shape(grid), grid)
@@ -119,7 +122,10 @@ class Source:
     # ---- lines --------------------------------------------------------------
     def add_line(self, center_nm, depth, sigma_nm):
         """Add a Gaussian line. ``depth`` > 0 is absorption (fraction of
-        continuum removed at the core), < 0 is emission."""
+        continuum removed at the core, at most 1), < 0 is emission. The
+        magnitude stays that of the continuum."""
+        if depth > 1:
+            raise ValueError("absorption depth cannot exceed 1")
         self.lines.append((float(center_nm), float(depth), float(sigma_nm)))
         return self
 

@@ -14,9 +14,11 @@ def test_regression_against_reference_notebook():
     # the reference grid overshoots lambda_max by one step; compare on the common bins
     n = min(len(wl_ref), len(res.wavelength))
     np.testing.assert_allclose(res.wavelength[:n], wl_ref[:n], rtol=1e-9)
-    np.testing.assert_allclose(res.n_star[:n], nstar_ref[:n], rtol=1e-6, atol=1e-19)
-    np.testing.assert_allclose(res.n_sky_pix[:n], nsky_ref[:n], rtol=1e-6, atol=1e-19)  # cumsum rounding; eps clamp
-    np.testing.assert_allclose(res.exptime[:n], t_ref[:n], rtol=1e-6)
+    ok = res.n_star[:n] > 0          # the oracle clamps zero-throughput bins to 1e-20; we return NaN
+    assert np.isnan(res.exptime[:n][~ok]).all() and (~ok).sum() > 0
+    np.testing.assert_allclose(res.n_star[:n][ok], nstar_ref[:n][ok], rtol=1e-6)
+    np.testing.assert_allclose(res.n_sky_pix[:n][ok], nsky_ref[:n][ok], rtol=1e-6)  # cumsum rounding
+    np.testing.assert_allclose(res.exptime[:n][ok], t_ref[:n][ok], rtol=1e-6)
 
 
 def test_snr_exptime_roundtrip():
@@ -107,6 +109,41 @@ def test_sky_binning_vectorised_matches_loop():
         else:
             j = np.argmin(np.abs(sky.wavelength_nm - wl[i]))
             assert abs(out[i] - sky._flux[j] / 1000) < 1e-12
+
+
+def test_peak_pixel_independent_of_n_telescopes_in_independent_mode():
+    src = Source.blackbody(5800, mag=8, band="V")
+    p1 = LFASTETC("bench_r1800", telescope=Telescope(1, "50um")).snr(src, 100).peak_e_per_pixel
+    p20 = LFASTETC("bench_r1800", telescope=Telescope(20, "50um")).snr(src, 100).peak_e_per_pixel
+    np.testing.assert_allclose(p20, p1, rtol=1e-12)
+    # fiber mode: all light lands on one detector, so peak scales with N (star-dominated)
+    f20 = LFASTETC("bench_r1800", telescope=Telescope(20, "18um")).snr(src, 100).peak_e_per_pixel
+    f1 = LFASTETC("bench_r1800", telescope=Telescope(1, "18um")).snr(src, 100).peak_e_per_pixel
+    np.testing.assert_allclose(f20, 20 * f1 - 19 * 3e-4 * 100, rtol=1e-9)
+
+
+def test_min_exptime_flag_and_all_selector():
+    etc = LFASTETC("cshell_r18000", wavelength_min_nm=1600, wavelength_max_nm=1605)
+    r = etc.exptime(Source.blackbody(5800, mag=4, band="H"), snr=50)
+    assert r.below_min_exptime.any()                     # 8 s Fowler minimum
+    src = Source.blackbody(5800, 10)
+    assert etc.snr_grid(src, [10], [100], wavelength="all").shape == (1, 1, len(etc.wavelength))
+    assert etc.limiting_magnitude(src, 100, 10, wavelength="all").shape == etc.wavelength.shape
+    with pytest.raises(ValueError):
+        etc.snr_grid(src, [10], [100], wavelength="median")
+
+
+def test_nan_in_zero_throughput_bins_and_at_outside_grid():
+    etc = LFASTETC("cshell_r18000")                      # includes the 1355-1420 nm telluric gap
+    src = Source.blackbody(5800, mag=10, band="J")
+    r = etc.exptime(src, snr=10)
+    assert np.isnan(r.exptime).any()
+    good = etc.telescope.kopt(etc.wavelength) > 1e-3        # outside the telluric cores
+    assert np.nanmax(r.exptime[good]) < 1e6
+    m = etc.limiting_magnitude(src, 600, 10, wavelength="all")
+    assert np.isnan(m[~(etc.telescope.kopt(etc.wavelength) > 0)]).all()
+    assert np.nanmin(m[good]) > 5
+    assert np.isnan(r.at(2000.0)["snr"])
 
 
 def test_saturation_flag():

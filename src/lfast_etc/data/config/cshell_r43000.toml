@@ -6,7 +6,7 @@ description = "CSHELL, 100 um slit, R=43,000, 1.08-1.75 um (slit loss placeholde
 wavelength_min_nm = 1080.0
 wavelength_max_nm = 1750.0
 resolving_power = 43000.0
-pixels_per_resel = 2.5
+pixels_per_resel = 2.5    # dispersion direction only (reference notebook); x fiber-image height when known
 spectrograph_efficiency = 0.1
 slit_throughput = 0.5    # PLACEHOLDER
 qe = 0.8
