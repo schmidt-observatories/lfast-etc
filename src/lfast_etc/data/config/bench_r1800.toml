@@ -1,0 +1,19 @@
+# WIYN Bench spectrograph, sample moderate-resolution visible configuration.
+# 600 lpm grating @ 10.1 deg, lambda_central = 5500 A, delta_lambda = 2763 A.
+# Only 1-2 Bench configurations will be offered at the start of operations;
+# the spectrograph cannot be reconfigured during the night. LFAST uses 1x1 binning.
+# See http://www.wiyn.org/instruments/wiynspecoverview.html for all configurations.
+[instrument]
+name = "bench_r1800"
+description = "WIYN Bench, 600 lpm grating, R~1800, 412-688 nm"
+wavelength_min_nm = 412.0
+wavelength_max_nm = 688.0
+resolving_power = 1800.0
+pixels_per_resel = 2.2
+spectrograph_efficiency = 0.3
+slit_throughput = 1.0
+qe = 0.75              # placeholder flat QE
+dark_current = 3.0e-4  # e-/s/pix
+read_noise = 3.7       # e-/pix
+full_well = 100000.0   # placeholder
+min_exptime = 1.0

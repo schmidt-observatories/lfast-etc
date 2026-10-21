@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lfast-etc"
+version = "0.1.0"
+authors = [{ name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org" }]
+description = "Exposure Time Calculator for the LFAST telescope array (WIYN Bench spectrograph and CSHELL)."
+readme = "README.md"
+license = { text = "GNU GENERAL PUBLIC LICENSE - Version 3" }
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "astropy>=5.3",
+  "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+web = ["flask>=3", "bokeh>=3.4"]
+docs = [
+  "sphinx>=7", "sphinx-book-theme", "nbsphinx", "sphinx-design",
+  "sphinx-copybutton", "myst-parser", "ipykernel", "pandoc",
+]
+dev = ["pytest", "nbformat", "nbclient", "ipykernel", "jupyter"]
+
+[project.scripts]
+lfast-etc-web = "lfast_etc.web.app:main"
+
+[project.urls]
+Homepage = "https://github.com/schmidt-observatories/lfast-etc"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"lfast_etc" = [
+  "data/throughput/*.npy",
+  "data/sky/*.fits",
+  "data/config/*.toml",
+  "web/templates/*.html",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

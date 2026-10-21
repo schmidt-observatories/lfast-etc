@@ -1,0 +1,19 @@
+# CSHELL, native resolution using the input fiber alone (no slit).
+# CSHELL covers ~1.08-1.75 um. Free spectral range is small: ~2.5e-3 lambda
+# (39 A at 1.555 um, 27 A at 1.08 um, 44 A at 1.75 um), so one setup covers
+# only a narrow window; set wavelength limits to the window of interest.
+[instrument]
+name = "cshell_r18000"
+description = "CSHELL, native fiber resolution R=18,000, 1.08-1.75 um"
+wavelength_min_nm = 1080.0
+wavelength_max_nm = 1750.0
+resolving_power = 18000.0
+pixels_per_resel = 2.5
+spectrograph_efficiency = 0.1
+slit_throughput = 1.0
+qe = 0.8               # placeholder flat QE
+dark_current = 0.5     # e-/s/pix
+read_noise = 22.0      # e-/pix, Fowler sampling with total exposure > 8 s
+full_well = 80000.0    # placeholder
+min_exptime = 8.0
+free_spectral_range_frac = 2.5e-3

@@ -1,0 +1,17 @@
+# CSHELL with the 200 um slit. Slit throughput loss is TBD ("XX%" in the
+# reference notebook); 0.75 is a placeholder -- update when measured.
+[instrument]
+name = "cshell_r21500"
+description = "CSHELL, 200 um slit, R=21,500, 1.08-1.75 um (slit loss placeholder)"
+wavelength_min_nm = 1080.0
+wavelength_max_nm = 1750.0
+resolving_power = 21500.0
+pixels_per_resel = 2.5
+spectrograph_efficiency = 0.1
+slit_throughput = 0.75   # PLACEHOLDER
+qe = 0.8
+dark_current = 0.5
+read_noise = 22.0
+full_well = 80000.0
+min_exptime = 8.0
+free_spectral_range_frac = 2.5e-3

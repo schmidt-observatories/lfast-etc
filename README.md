@@ -1,2 +1,1 @@
 # lfast-etc
-LFAST ETC
