@@ -5,9 +5,9 @@
 # See http://www.wiyn.org/instruments/wiynspecoverview.html for all configurations.
 [instrument]
 name = "bench_r1800"
-description = "WIYN Bench, 600 lpm grating, R~1800, 412-688 nm"
+description = "WIYN Bench, 600 lpm grating, R~1800, 412-686 nm"
 wavelength_min_nm = 412.0
-wavelength_max_nm = 688.0
+wavelength_max_nm = 686.0   # config spans to 688 nm; 687 nm is a K_opt=0 point (O2 B band)
 resolving_power = 1800.0
 pixels_per_resel = 2.2    # dispersion direction only (reference notebook); x fiber-image height when known
 spectrograph_efficiency = 0.3

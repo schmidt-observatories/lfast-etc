@@ -28,6 +28,22 @@ Three objects
 
 Presets are TOML files in ``src/lfast_etc/data/config``; copy one to add a new configuration.
 The CSHELL slit-loss values and the detector full wells are placeholders flagged in the files.
+Fields (all under ``[instrument]``):
+
+==========================  ========================================================
+``name``, ``description``   strings
+``wavelength_min_nm/max``   bandpass of the configuration [nm]
+``resolving_power``         R = lambda / delta_lambda
+``pixels_per_resel``        pixels in the extraction aperture per resel (``n_pix``)
+``spectrograph_efficiency`` optical throughput of the spectrograph, excluding QE and slit
+``slit_throughput``         extra factor for slit modes (1 for the bare fiber)
+``qe``                      detector QE (scalar in TOML; pass a callable in Python for a curve)
+``dark_current``            e-/s/pixel
+``read_noise``              e-/pixel per read
+``full_well``               e-/pixel, for the saturation flag
+``min_exptime``             shortest read [s] for which ``read_noise`` holds (flagged, not enforced)
+``free_spectral_range_frac`` FSR / lambda for echelles (informational)
+==========================  ========================================================
 
 **Telescope** -- the array. ``n_telescopes`` is a free parameter.
 
@@ -49,6 +65,16 @@ The CSHELL slit-loss values and the detector full wells are placeholders flagged
     Source.from_arrays(wavelength_nm, flux, flux_unit="flam", mag=16, band="I")
     Source.blackbody(5800, 15).add_line(656.3, depth=0.3, sigma_nm=0.05)
 
+**Sky.** The bundled SkyCalc table is **grey time**: the ESO sky model at 2640 m (SkyCalc has no
+Kitt Peak site; Paranal-like aerosols), airmass 1.3, PWV 2.5 mm, moon at 45 degrees altitude and
+45 degrees from the target, sampled at R=20,000. Scattered moonlight is about 60% of the visible
+sky, so faint-end results are ~0.3-0.5 mag pessimistic for dark time; ``Sky(scale=0.4)`` is a
+crude dark-time proxy. For real planning generate a table at
+https://www.eso.org/observing/etc/skycalc/ (or with ``skycalc_cli``) with the conditions you
+want, keep the default FITS output, and pass ``Sky("my_skytable.fits")``; the ETC needs the
+columns ``lam`` [nm, vacuum], ``flux`` [ph/s/m^2/um/arcsec^2] and ``trans``. Use a wavelength
+grid at least as fine as your resel (R >= 50,000 for CSHELL) if airglow lines matter.
+
 Calculations
 ------------
 
@@ -65,6 +91,11 @@ Calculations
     etc.snr_grid(star, mags, exptimes, wavelength=(500, 650))    # (len(mags), len(exptimes))
     etc.limiting_magnitude(star, exptime=900, snr=10, wavelength=(500, 650))
     etc.exptime_vs_mag(star, mags, snr=30)
+
+**Per resel versus per pixel.** Every SNR is per resolution element (``n_pix`` pixels, 2.2 for the
+Bench and 2.5 for CSHELL in the presets). In the photon-limited regime the SNR per pixel is
+roughly ``SNR_resel / sqrt(n_pix)``; survey papers usually quote per-pixel values, so convert
+before comparing. ``n_exp`` reads over the total ``exptime`` add read noise ``n_exp`` times.
 
 ``wavelength`` selects how the per-bin arrays are reduced: ``None`` = median over the grid, a
 float = nearest bin, ``(lo, hi)`` = median over a window, ``"all"`` = the per-bin array (for

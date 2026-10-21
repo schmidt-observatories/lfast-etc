@@ -81,7 +81,7 @@ class ETCResult:
         ax.set_xlabel("Wavelength (nm)")
         ax.set_ylabel("Exposure time (s)" if what == "exptime" else "SNR per resel")
         ax.set_yscale("log")
-        ax.set_title(f"{self.source}\n{self.setup}", fontsize=9)
+        ax.set_title(f"{self.source} | {self.setup.split(':')[0]}, {self.setup.split('|')[1].split('(')[0].strip()}", fontsize=9)
         return ax
 
     def plot_rates(self, ax=None):
@@ -116,7 +116,10 @@ class LFASTETC:
         Shortcuts for building the default telescope.
     wavelength_min_nm, wavelength_max_nm : float, optional
         Restrict the grid (e.g. one CSHELL echelle setting). Defaults to the
-        instrument bandpass clipped to the throughput/sky data range.
+        instrument bandpass clipped to the throughput/sky data range. For an
+        echelle with a small free spectral range (CSHELL) the per-bin results
+        are what *one setting* would give at that wavelength; covering the
+        full range takes many settings, which are not summed.
     grid : {"resel", "uniform"}
         One bin per resolution element (default) or a uniform ``step_nm`` grid.
     apply_extinction : bool
@@ -195,7 +198,7 @@ class LFASTETC:
 
     def star_rate(self, source):
         """Stellar electron rate per resel [e-/s], whole array."""
-        return source.photon_flux(self.wavelength) * self.throughputs()["star"]
+        return source.photon_flux(self.wavelength, self.delta_lambda) * self.throughputs()["star"]
 
     def rates(self, source):
         """All noise-model ingredients for ``source`` on this setup."""
@@ -325,6 +328,12 @@ class LFASTETC:
         t = self._exptime_formula(s, r["n_sky_pix"], r["dark_pix"], r["read_noise"],
                                   r["n_pix"], float(snr), n_exp)
         return self._select(t, wavelength)
+
+    def reads_needed(self, source, exptime, margin=0.8):
+        """Smallest ``n_exp`` keeping the brightest pixel below ``margin * full_well``
+        in a total exposure ``exptime`` [s] (1 if nothing saturates)."""
+        peak = self.snr(source, exptime, n_exp=1).peak_e_per_pixel
+        return int(max(1, np.ceil(np.nanmax(peak) / (margin * self.instrument.full_well))))
 
     # ---- misc ---------------------------------------------------------------
     def describe(self):

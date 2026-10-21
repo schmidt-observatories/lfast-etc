@@ -52,7 +52,8 @@ extinction. Hence
 Sky
 ---
 
-The SkyCalc table (Kitt Peak-like: 2640 m, airmass 1.3, PWV 2.5 mm, moon 45 degrees away, R=20,000
+The SkyCalc table (ESO sky model at 2640 m, Paranal-like aerosols since SkyCalc has no Kitt
+Peak site; airmass 1.3, PWV 2.5 mm, **moon up** 45 degrees away at 45 degrees altitude, R=20,000
 sampling) gives the radiance :math:`B_{sky}` in ph s\ :sup:`-1` m\ :sup:`-2` um\ :sup:`-1`
 arcsec\ :sup:`-2`. Every SkyCalc sample inside a resel is averaged (nearest sample if the resel is
 narrower than the table sampling). With the fiber solid angle :math:`\Omega`,
@@ -109,3 +110,8 @@ Known limitations
 * No telluric absorption in the *source* path unless ``apply_extinction=True`` (and then the
   extinction already in :math:`K_{opt}` is double counted).
 * Blackbody SEDs only, unless you supply a spectrum.
+* No line-spread function: spectral lines are averaged over the resel (equivalent width
+  preserved) but not convolved with the instrument profile.
+* :math:`K_{opt}` has single-sample zeros at telluric cores (687 nm O2 B band, 1355-1420 nm
+  H2O); those bins are NaN and the Bench preset stops at 686 nm for that reason.
+* The default sky is grey time (moon up); see :doc:`usage` for a dark-time proxy.

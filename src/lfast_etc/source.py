@@ -6,6 +6,7 @@ absolute scale is set by one magnitude in one band.
 """
 from dataclasses import dataclass, field
 import numpy as np
+from scipy.special import erf
 
 from .constants import H_PLANCK, C_LIGHT, K_BOLTZMANN
 
@@ -130,18 +131,32 @@ class Source:
         return self
 
     # ---- evaluation ---------------------------------------------------------
-    def flux(self, wavelength_nm):
-        """``F_lambda`` at Earth [W m^-2 nm^-1], lines included."""
+    def line_factor(self, wavelength_nm, delta_lambda_nm=None):
+        """Multiplicative line profile. With ``delta_lambda_nm`` the Gaussian is
+        averaged over each bin ``[wl - dl/2, wl + dl/2]`` (equivalent-width
+        preserving), so lines narrower than a resel are handled correctly."""
         wl = np.asarray(wavelength_nm, float)
-        f = self._scale * self.shape(wl)
+        f = np.ones_like(wl)
         for c, d, s in self.lines:
-            f = f * (1 - d * np.exp(-0.5 * ((wl - c) / s) ** 2))
+            if delta_lambda_nm is None:
+                g = np.exp(-0.5 * ((wl - c) / s) ** 2)
+            else:
+                dl = np.asarray(delta_lambda_nm, float)
+                lo, hi = wl - dl / 2, wl + dl / 2
+                g = s * np.sqrt(2 * np.pi) / dl * 0.5 * (erf((hi - c) / (s * np.sqrt(2))) - erf((lo - c) / (s * np.sqrt(2))))
+            f = f * (1 - d * g)
         return f
 
-    def photon_flux(self, wavelength_nm):
+    def flux(self, wavelength_nm, delta_lambda_nm=None):
+        """``F_lambda`` at Earth [W m^-2 nm^-1], lines included (bin-averaged
+        if ``delta_lambda_nm`` is given)."""
+        wl = np.asarray(wavelength_nm, float)
+        return self._scale * self.shape(wl) * self.line_factor(wl, delta_lambda_nm)
+
+    def photon_flux(self, wavelength_nm, delta_lambda_nm=None):
         """Photon flux density [photons s^-1 m^-2 nm^-1]."""
         wl = np.asarray(wavelength_nm, float)
-        return self.flux(wl) / (H_PLANCK * C_LIGHT / (wl * 1e-9))
+        return self.flux(wl, delta_lambda_nm) / (H_PLANCK * C_LIGHT / (wl * 1e-9))
 
     def with_mag(self, mag):
         """Copy of this source at another magnitude (same band/system/lines)."""

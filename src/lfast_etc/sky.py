@@ -23,8 +23,10 @@ def _load(path):
 class Sky:
     """Sky radiance and transmission from a SkyCalc FITS table.
 
-    The bundled table is Kitt Peak-like (2640 m, August, airmass 1.3, PWV 2.5
-    mm, moon 45 deg away at 45 deg altitude, R=20,000 sampling). Resels
+    The bundled table is **grey time**: the ESO SkyCalc model at 2640 m (no
+    Kitt Peak site exists in SkyCalc), August, airmass 1.3, PWV 2.5 mm, moon
+    up at 45 deg altitude and 45 deg from the target (about 60% of the
+    visible sky), R=20,000 sampling. ``scale=0.4`` is a crude dark-time proxy. Resels
     narrower than the table sampling (R > 20,000, i.e. the CSHELL presets)
     fall back to the nearest sample, so airglow lines are pre-smoothed to
     R=20,000. Generate your own table at

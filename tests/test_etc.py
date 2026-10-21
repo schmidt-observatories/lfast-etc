@@ -7,9 +7,9 @@ from reference_notebook import run as reference_run
 
 def test_regression_against_reference_notebook():
     """Bench, 400-1800 nm resel grid, 5800 K V=15 star with an H-alpha line, SNR=50."""
-    wl_ref, t_ref, nstar_ref, nsky_ref = reference_run()
+    wl_ref, t_ref, nstar_ref, nsky_ref = reference_run(spectral_lines=())
     etc = LFASTETC("bench_r1800", n_telescopes=20, wavelength_min_nm=400, wavelength_max_nm=1800)
-    src = Source.blackbody(5800, mag=15, band="V").add_line(656.3, 0.3, 0.05)
+    src = Source.blackbody(5800, mag=15, band="V")
     res = etc.exptime(src, snr=50)
     # the reference grid overshoots lambda_max by one step; compare on the common bins
     n = min(len(wl_ref), len(res.wavelength))
@@ -79,6 +79,21 @@ def test_source_normalisation_and_bands():
     wl = np.linspace(300, 2000, 500)
     user = Source.from_arrays(wl, np.ones_like(wl), mag=15, band="J")
     assert abs(user.magnitude("J") - 15) < 1e-9
+
+
+def test_line_equivalent_width_preserved_on_coarse_grid():
+    """A 0.05 nm line on a 0.36 nm resel grid keeps its equivalent width (reference notebook point-sampled it)."""
+    src = Source.blackbody(5800, 15).add_line(656.3, 0.3, 0.05)
+    etc = LFASTETC("bench_r1800")
+    ew = np.sum((1 - src.line_factor(etc.wavelength, etc.delta_lambda)) * etc.delta_lambda)
+    assert abs(ew - 0.3 * 0.05 * np.sqrt(2 * np.pi)) < 1e-4   # geometric grid: bins overlap slightly
+    # fine sampling and bin averaging agree when bins are much narrower than the line
+    fine = np.linspace(655, 657.6, 20001)
+    np.testing.assert_allclose(src.line_factor(fine, fine[1] - fine[0]), src.line_factor(fine), atol=1e-6)
+    assert etc.reads_needed(Source.blackbody(5800, 15), 600) == 1
+    assert etc.reads_needed(Source.blackbody(5800, 2), 600) > 1
+    with pytest.raises(ValueError):
+        src.add_line(500, 1.5, 0.1)
 
 
 def test_source_errors():
