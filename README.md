@@ -49,9 +49,18 @@ lfast-etc-web --port 5000     # http://127.0.0.1:5000  (JSON at /api/calc?...)
 
 ## Notebooks
 
-`notebooks/` holds executed examples: quick start, brightness sensitivity maps and array
-scaling, stellar metallicity surveys, TDAMM follow-up, and exoplanet atmospheres (He 10830)
-with CSHELL. Rebuild them with `python scripts/build_notebooks.py`.
+`notebooks/` holds executed examples. 01-05 (rebuild with `python scripts/build_notebooks.py`):
+quick start, brightness sensitivity maps and array scaling, stellar metallicity, TDAMM
+follow-up, exoplanet atmospheres (He 10830) with CSHELL. 06-10 (rebuild with
+`python scripts/build_science_notebooks.py`) survey science cases versus the array size
+(20 telescopes, 10 m equivalent = 200, 30 m equivalent = 1720): array-scaling overview,
+LSST-era time domain, Galactic archaeology, stellar activity and flares, CSHELL NIR science.
+
+## Science memo
+
+`memo/SM_001_LFAST_science_cases.pdf` (LaTeX source alongside) summarises the science cases
+for the nominal array and the replicated system, with verified references. Figures come from
+notebooks 06-10 (`memo/figures/`). Recompile with two `pdflatex` passes in `memo/`.
 
 ## Docs
 
@@ -74,6 +83,7 @@ src/lfast_etc/data/   throughput curves, SkyCalc table, instrument presets (TOML
 src/lfast_etc/web/    Flask + Bokeh browser ETC
 notebooks/            executed example notebooks
 docs/                 Sphinx site
+memo/                 LFAST science memo (LaTeX + PDF) and its figures
 input/                original hackathon materials (reference notebook; the data files are the
                       same bytes as src/lfast_etc/data, kept here for provenance)
 tests/                pytest, including the regression test against the reference notebook

@@ -182,7 +182,7 @@ md("""## Dark time versus the bundled grey-time sky
 
 The bundled SkyCalc table has the moon up (45 deg away, 45 deg altitude): scattered moonlight is
 ~57% of the 540-560 nm sky, giving V ~ 20.5 mag/arcsec$^2$, about 1 mag brighter than dark Kitt
-Peak (V ~ 21.6-21.9, Neugent & Massey 2010). A crude dark-time estimate is `Sky(scale=0.4)`
+Peak (V ~ 21.7-22.0 at zenith, Neugent & Massey 2010). A crude dark-time estimate is `Sky(scale=0.4)`
 (this scales the airglow lines too, which is wrong in detail; generate a proper SkyCalc table for
 real planning). The Bench becomes sky-limited at V > ~19.5, so this matters for the faint end."""),
 code("""from lfast_etc import Sky
@@ -207,7 +207,7 @@ md("""
 At R ~ 1800 the Bench sample configuration is LAMOST-like (LAMOST LRS is R ~ 1800 over
 370-900 nm). Survey pipelines at that resolution deliver [Fe/H] to ~0.1 dex for FGK stars once the
 SNR per *pixel* exceeds ~20-30 (LAMOST LASP: Wu et al. 2014, Luo et al. 2015; SEGUE SSPP: ~0.11
-dex at SNR >= 50, Lee et al. 2008), with a ~0.1 dex floor; ~0.05 dex is reached only by data-driven
+dex for high-SNR F/G stars, Allende Prieto et al. 2008), with a ~0.1 dex floor; ~0.05 dex is reached only by data-driven
 methods trained on high-resolution labels (Ho et al. 2017; Xiang et al. 2019) at SNR > 50. The ETC
 works per *resel* (2.2 pixels here), so SNR 20/pixel is ~30/resel. The 412-686 nm window carries
 the Ca I 422.7, G band, Fe/Mg b (516-519) and Na D (589) features that drive the sensitivity.
@@ -293,9 +293,9 @@ is: *how faint a transient can we classify in a given exposure, and how quickly?
   (SN Ia near peak) and a cool red 3500 K blackbody (late kilonova / SN II late). A power-law
   $F_\\nu \\propto \\nu^{-0.7}$ represents a GRB afterglow. Magnitudes are **R** (Cousins; within
   ~0.1-0.2 mag of SDSS r for these colours), so the SED colour matters in the 450-650 nm window.
-* Kilonova: AT2017gfo-like: r ~ 17.3 at ~1 d at 40 Mpc ($M_r$ ~ -15.8 to -16), fading ~0.6 mag/day
-  in r over days 1-7 (Drout et al. 2017; Villar et al. 2017), cooling from ~10,000 K at 0.5 d to
-  ~5000 K at 1.5 d and ~3000 K by 3.5 d (Drout et al. 2017; Shappee et al. 2017).
+* Kilonova: AT2017gfo-like: r = 17.3 at 0.5 d at 40 Mpc, declining 0.95 mag/day in r over the
+  first 5 days (Drout et al. 2017, Table S2), cooling from ~10,000 K at 0.5 d to ~5000 K at 1.5 d
+  and approaching ~2500 K after ~5 d (Drout et al. 2017; Shappee et al. 2017).
 * The bundled sky table is grey time (moon up); dark-time depths are ~0.3-0.5 mag deeper at the
   faint end (see the sensitivity-map notebook).
 """),
@@ -333,15 +333,15 @@ code("""for exp in (300, 900, 1800, 3600):
     print(f"{exp:5d} s   " + " | ".join(lims))"""),
 md("""## Kilonova: how many days after merger can we still classify?
 
-AT2017gfo at 40 Mpc: r ~ 17.3 at 1 d, fading ~0.6 mag/day in r, cooling 10,000 K -> 5000 K ->
-3000 K at 0.5, 1.5 and 3.5 d (linear ramps). We scale to other distances with the distance modulus
+AT2017gfo at 40 Mpc: r = 17.3 at 0.5 d, fading 0.95 mag/day in r, cooling 10,000 K -> 5000 K ->
+2500 K at 0.5, 1.5 and 5.5 d (linear ramps). We scale to other distances with the distance modulus
 and ask for a classification spectrum (SNR=5 at R=300) in a 30-minute exposure. The blackbody is
 normalised in R (Cousins ~ SDSS r)."""),
 code("""days = np.linspace(0.5, 7, 27)
 def kn_mag(d, D_Mpc):
-    return 17.3 + 0.6*(d-1.0) + 5*np.log10(D_Mpc/40)
+    return 17.3 + 0.95*(d-0.5) + 5*np.log10(D_Mpc/40)
 def kn_teff(d):
-    return np.interp(d, [0.5, 1.5, 3.5], [10000, 5000, 3000])
+    return np.interp(d, [0.5, 1.5, 5.5], [10000, 5000, 2500])
 
 fig, ax = plt.subplots(figsize=(7.5, 4.5))
 for D in (40, 100, 200):
@@ -439,7 +439,7 @@ targets = {  # (Teff [K], 2MASS J, peak He 10830 depth): well-known detections
     "HD 189733 b": (5000, 6.07, 0.0104),   # Salz et al. 2018
     "WASP-69 b":   (4715, 8.03, 0.0359),   # Nortmann et al. 2018
     "HAT-P-11 b":  (4780, 7.61, 0.0108),   # Allart et al. 2018
-    "GJ 3470 b":   (3600, 8.79, 0.015),    # Palle et al. 2020 (Ninan et al. 2020: ~1%)
+    "GJ 3470 b":   (3600, 8.79, 0.015),    # Palle et al. 2020 (Ninan et al. 2020: EW 0.012 A)
     "WASP-107 b":  (4430, 9.38, 0.0554),   # Allart et al. 2019 (Kirk et al. 2020: 7.3%)
 }"""),
 md("## Per-transit precision and detection significance"),

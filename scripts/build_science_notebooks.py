@@ -128,8 +128,8 @@ and how they move at 10 m and 30 m equivalent.
 
 * Classification: SNR 5 per R = 300 bin over 450-650 nm (SEDM-like, Blagorodnova et al. 2018),
   i.e. SNR 2.04 per native resel; magnitudes in R (Cousins ~ SDSS r).
-* Kilonova: AT2017gfo-like, r = 17.3 at 1 d at 40 Mpc, fading 0.6 mag/day, cooling 10,000 K ->
-  5000 K -> 3000 K at 0.5 / 1.5 / 3.5 d (Drout et al. 2017; Villar et al. 2017).
+* Kilonova: AT2017gfo-like, r = 17.3 at 0.5 d at 40 Mpc, declining 0.95 mag/day in r, cooling
+  10,000 K -> 5000 K -> 2500 K at 0.5 / 1.5 / 5.5 d (Drout et al. 2017; Shappee et al. 2017).
 * SN Ia: $M_B$ = -19.3 at peak, a 6000 K blackbody, no K-correction; luminosity distance from a
   flat $\\Lambda$CDM with $H_0$ = 70, $\\Omega_m$ = 0.3.
 * TDE: 20,000 K blackbody; monitoring needs SNR 20 per R = 300 bin.
@@ -151,7 +151,7 @@ for exp, color in ((300, 'C2'), (1800, 'C0'), (3600, 'C1')):
     d = np.array([bench(int(n)).limiting_magnitude(sn_like, exp, snr_resel_class, wavelength=WINDOW) for n in NS])
     depth[exp] = dict(zip(NS, d))
     ax.plot(NS, d, marker='o', ms=3, color=color, label=f"{exp/60:.0f} min")
-for mag, txt in ((20.5, "ZTF single visit"), (24.5, "LSST single visit r")):
+for mag, txt in ((20.6, "ZTF single visit r"), (24.5, "LSST single visit r")):
     ax.axhline(mag, color='0.5', ls=':'); ax.text(NS[0], mag-0.1, txt, fontsize=8, color='0.4')
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
 ax.set_xscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Classification depth (R mag)")
@@ -163,21 +163,23 @@ for exp, d in depth.items():
 md("""## Kilonova horizon
 
 Distance at which an AT2017gfo-like kilonova can still be classified (30 min exposure) at
-1, 2 and 3 days after merger, versus the array size. The LIGO-Virgo-KAGRA O5 binary-neutron-star
-range is a few hundred Mpc (see memo for the cited values)."""),
+0.5, 1, 2 and 3 days after merger, versus the array size. The LIGO binary-neutron-star range is
+150-170 Mpc in O4 and 225-295 Mpc planned for O5 (LVK observing plan G2002127-v37, Oct 2026)."""),
 code("""def kn_src(day):
-    teff = np.interp(day, [0.5, 1.5, 3.5], [10000, 5000, 3000])
+    teff = np.interp(day, [0.5, 1.5, 5.5], [10000, 5000, 2500])
     return Source.blackbody(teff, 0, BAND)
 def kn_mag_40(day):
-    return 17.3 + 0.6*(day-1.0)
+    return 17.3 + 0.95*(day-0.5)
 fig, ax = plt.subplots(figsize=(7.5, 4.5))
 horizon = {}
-for day, color in ((1, 'C0'), (2, 'C1'), (3, 'C3')):
+for day, color in ((0.5, 'C2'), (1, 'C0'), (2, 'C1'), (3, 'C3')):
     lim = np.array([bench(int(n)).limiting_magnitude(kn_src(day), 1800, snr_resel_class, wavelength=WINDOW) for n in NS])
     D = 40*10**((lim - kn_mag_40(day))/5)
     horizon[day] = dict(zip(NS, D))
     ax.plot(NS, D, marker='o', ms=3, color=color, label=f"{day} d after merger")
 for n in (20, 200, 1720): ax.axvline(n, color='0.6', ls='--', lw=0.8)
+ax.axhspan(225, 295, color='0.85', zorder=0); ax.text(NS[0]*1.05, 300, "LIGO O5 BNS range", fontsize=8, color='0.4')
+ax.axhspan(150, 170, color='0.92', zorder=0); ax.text(NS[0]*1.05, 173, "O4", fontsize=8, color='0.4')
 ax.set_xscale('log'); ax.set_yscale('log'); ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Classification horizon (Mpc)")
 ax.set_title("AT2017gfo-like kilonova, 30 min, SNR=5 per R=300 bin", fontsize=9); ax.legend()
 deq_axis(ax)
@@ -291,10 +293,12 @@ for n in (20, 200, 1720):
     print(f"N={n:5d}: " + "  ".join(f"V={m}: {8*3600/(ti+OVERHEAD):6.0f}/night ({ti/60:5.1f} min each)" for m, ti in zip((15, 17, 19), t)))"""),
 md("""## Context: Gaia XP metal-poor candidates
 
-Photometric metallicity catalogues from Gaia XP spectra contain ~10$^5$-10$^6$ candidates with
-[Fe/H] < -2 at G ~ 13-17.5. At V ~ 16-17 the nominal array confirms a candidate in minutes, so the
-20x array alone could verify thousands per season; the larger arrays push confirmation to the
-faint, distant halo (V ~ 19-20) where multiplexed 4 m surveys run out of photons per fiber."""),
+Photometric metallicity catalogues from Gaia XP spectra (published to G < 17.65) contain
+~2 x 10$^5$ candidates with [Fe/H] < -2 (Xylakis-Dornbusch et al. 2024) and more than 10$^4$
+very-metal-poor giants (Andrae et al. 2023). At V ~ 16-17 the nominal array confirms a candidate in
+minutes, so the 20x array alone could verify thousands per season; the larger arrays push
+confirmation to the faint, distant halo (V ~ 19-20) where multiplexed 4 m surveys run out of
+photons per fiber."""),
 code("""for n in (20, 200, 1720):
     t = bench(n).exptime_vs_mag(giant, [16, 17.5, 19, 20], snr=SNR_FEH, wavelength=WINDOW)
     print(f"N={n:5d}: " + "  ".join(f"V={m}: {ti/60:6.1f} min" for m, ti in zip((16, 17.5, 19, 20), t)))"""),
