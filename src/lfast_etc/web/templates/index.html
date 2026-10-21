@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LFAST ETC</title>
+{{ bokeh_head|safe }}
+<style>
+  :root { --purple: #5B2A86; --teal: #00798c; --grey: #555; --light: #f5f3f8; --border: #ddd; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--grey); background: #fafafa; font-size: 14px; }
+  header { background: var(--purple); color: #fff; padding: 14px 24px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header span { opacity: .8; font-size: 13px; margin-left: 12px; }
+  main { display: flex; gap: 24px; padding: 20px 24px; max-width: 1500px; margin: 0 auto; }
+  .form { flex: 0 0 360px; }
+  .results { flex: 1; min-width: 0; }
+  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 14px; padding: 10px 12px 12px; background: #fff; }
+  legend { color: var(--purple); font-weight: 600; padding: 0 6px; }
+  .row { display: flex; gap: 10px; margin-bottom: 8px; }
+  .row > label { flex: 1; display: flex; flex-direction: column; font-size: 12px; }
+  input, select { margin-top: 3px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; width: 100%; }
+  input:focus, select:focus { outline: none; border-color: var(--teal); }
+  button { background: var(--purple); color: #fff; border: none; border-radius: 4px; padding: 10px 18px; font-size: 14px; cursor: pointer; width: 100%; }
+  button:hover { background: var(--teal); }
+  .error { background: #fdecea; border-left: 4px solid #c62828; color: #7a1c1c; padding: 10px 14px; border-radius: 4px; margin-bottom: 14px; }
+  .note { font-size: 12px; color: var(--teal); margin: 4px 0 10px; }
+  h2 { color: var(--purple); font-size: 16px; margin: 0 0 8px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; margin-bottom: 14px; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: right; }
+  th { background: var(--light); color: var(--purple); font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; }
+  pre { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 10px; font-size: 12px; white-space: pre-wrap; color: var(--grey); }
+  .plot { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 14px; }
+  .hint { font-size: 11px; color: #888; margin: -4px 0 8px; }
+  .empty { color: #999; padding: 40px; text-align: center; border: 1px dashed var(--border); border-radius: 6px; }
+  @media (max-width: 900px) { main { flex-direction: column; } .form { flex: none; } }
+</style>
+</head>
+<body>
+<header><h1>LFAST Exposure Time Calculator <span>WIYN Bench &amp; CSHELL on the LFAST array</span></h1></header>
+<main>
+<form class="form" method="post" action="/">
+  <fieldset><legend>Instrument</legend>
+    <div class="row"><label>Preset
+      <select name="instrument" id="instrument">
+        {% for n in instruments %}<option value="{{ n }}" {% if form.instrument == n %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select></label></div>
+    <div class="hint">Overrides (blank = preset value)</div>
+    <div class="row">
+      <label>Resolving power <input name="resolving_power" value="{{ form.resolving_power }}"></label>
+      <label>Pixels / resel <input name="pixels_per_resel" value="{{ form.pixels_per_resel }}"></label>
+    </div>
+    <div class="row">
+      <label>Spectrograph eff. <input name="spectrograph_efficiency" value="{{ form.spectrograph_efficiency }}"></label>
+      <label>Slit throughput <input name="slit_throughput" value="{{ form.slit_throughput }}"></label>
+      <label>QE <input name="qe" value="{{ form.qe }}"></label>
+    </div>
+    <div class="row">
+      <label>Read noise (e-) <input name="read_noise" value="{{ form.read_noise }}"></label>
+      <label>Dark (e-/s/pix) <input name="dark_current" value="{{ form.dark_current }}"></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>Telescope array</legend>
+    <div class="row">
+      <label>N telescopes <input name="n_telescopes" value="{{ form.n_telescopes }}"></label>
+      <label>Fiber <select name="fiber">
+        {% for f in ("18um", "50um") %}<option value="{{ f }}" {% if form.fiber == f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+      </select></label>
+      <label>Combine <select name="combine">
+        {% for c in ("auto", "fiber", "independent") %}<option value="{{ c }}" {% if form.combine == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>Source</legend>
+    <div class="row">
+      <label>Type <select name="source_type">
+        {% for v, t in (("blackbody", "Blackbody"), ("flat", "Flat (F_nu)"), ("powerlaw", "Power law")) %}<option value="{{ v }}" {% if form.source_type == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select></label>
+      <label>Teff (K) <input name="teff" value="{{ form.teff }}"></label>
+      <label>Alpha (F_nu ~ nu^a) <input name="alpha" value="{{ form.alpha }}"></label>
+    </div>
+    <div class="row">
+      <label>Magnitude <input name="mag" value="{{ form.mag }}"></label>
+      <label>Band <select name="band">
+        {% for b in bands %}<option value="{{ b }}" {% if form.band == b %}selected{% endif %}>{{ b }}</option>{% endfor %}
+      </select></label>
+      <label>System <select name="system">
+        {% for s in ("Vega", "AB") %}<option value="{{ s }}" {% if form.system == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>Calculation</legend>
+    <div class="row"><label>Mode <select name="mode">
+      <option value="exptime" {% if form.mode == "exptime" %}selected{% endif %}>Exposure time for target SNR</option>
+      <option value="snr" {% if form.mode == "snr" %}selected{% endif %}>SNR for exposure time</option>
+    </select></label></div>
+    <div class="row">
+      <label>Target SNR / resel <input name="snr" value="{{ form.snr }}"></label>
+      <label>Exposure time (s) <input name="exptime" value="{{ form.exptime }}"></label>
+      <label>N exposures <input name="n_exp" value="{{ form.n_exp }}"></label>
+    </div>
+    <div class="row">
+      <label>λ min (nm) <input name="wmin" value="{{ form.wmin }}" placeholder="preset"></label>
+      <label>λ max (nm) <input name="wmax" value="{{ form.wmax }}" placeholder="preset"></label>
+    </div>
+  </fieldset>
+  <button type="submit">Calculate</button>
+</form>
+
+<section class="results">
+  {% if error %}<div class="error"><strong>Input error:</strong> {{ error }}</div>{% endif %}
+  {% if summary %}
+    <h2>Summary</h2>
+    <table>
+      <tr><th></th><th>10%</th><th>50%</th><th>90%</th></tr>
+      <tr><td>Exposure time (s){% if mode_label == "exptime" %} — solved{% endif %}</td>
+        {% for p in ("10", "50", "90") %}<td>{{ "%.4g"|format(summary.exptime[p]) }}</td>{% endfor %}</tr>
+      <tr><td>SNR per resel{% if mode_label == "snr" %} — solved{% endif %}</td>
+        {% for p in ("10", "50", "90") %}<td>{{ "%.4g"|format(summary.snr[p]) }}</td>{% endfor %}</tr>
+      <tr><td>Saturated bins</td><td colspan="3">{{ "%.1f"|format(100 * summary.saturated_fraction) }}%</td></tr>
+      <tr><td>Wavelength bins</td><td colspan="3">{{ summary.n_bins }}</td></tr>
+      <tr><td>Limiting {{ summary.limiting_mag_band }} mag ({{ summary.limiting_mag_system }}), SNR=10 in 1 hr</td>
+        <td colspan="3">{{ "%.2f"|format(summary.limiting_mag_snr10_1hr) }}</td></tr>
+    </table>
+    <pre>{{ describe }}</pre>
+    {% if plot_note %}<div class="note">{{ plot_note }}</div>{% endif %}
+    {% for d in plot_divs %}<div class="plot">{{ d|safe }}</div>{% endfor %}
+    {{ plot_script|safe }}
+  {% elif not error %}
+    <div class="empty">Set up the instrument, array and source on the left, then press <strong>Calculate</strong>.</div>
+  {% endif %}
+</section>
+</main>
+<script>
+  // Show preset values as placeholders in the override fields.
+  var presets = {{ placeholders|tojson }};
+  var sel = document.getElementById("instrument");
+  function setPlaceholders() {
+    var p = presets[sel.value] || {};
+    for (var k in p) { var el = document.getElementsByName(k)[0]; if (el) el.placeholder = p[k]; }
+  }
+  sel.addEventListener("change", setPlaceholders); setPlaceholders();
+</script>
+</body>
+</html>
