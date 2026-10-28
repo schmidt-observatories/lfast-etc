@@ -35,18 +35,19 @@ from lfast_etc import LFASTETC, Source, Telescope, Instrument, Sky, list_instrum
 from lfast_etc.plotting import *
 """
 
-# ---- theme (same family as the WCC ETC docs) ----
-html_theme = "pydata_sphinx_theme"
-html_logo = "logo_schmidt_observatory_system.png"
-html_title = "lfast-etc"
+# ---- theme: same as the wcc-etc docs (Read the Docs theme, SOS logo) ----
+html_theme = "sphinx_rtd_theme"
 html_theme_options = {
-    "show_nav_level": 2,
-    "navigation_with_keys": True,
-    "github_url": "https://github.com/schmidt-observatories/lfast-etc",
-    "logo": {"text": "lfast-etc", "image_light": "logo_schmidt_observatory_system.png",
-             "image_dark": "logo_schmidt_observatory_system.png"},
-    "secondary_sidebar_items": ["page-toc"],
+    "logo_only": False,
+    "navigation_depth": 3,
+    "collapse_navigation": False,
+    "sticky_navigation": True,
+    "style_external_links": True,
 }
+html_static_path = ["_static"]
+html_logo = "logo_schmidt_observatory_system.png"
+html_title = f"lfast-etc {release}"
+html_css_files = ["custom.css"]
 
 # ---- pull the executed notebooks from ../notebooks into docs/notebooks at build time ----
 _root = Path(__file__).parent
