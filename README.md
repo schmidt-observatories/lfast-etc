@@ -22,7 +22,7 @@ git clone git@github.com:schmidt-observatories/lfast-etc.git
 cd lfast-etc
 pip install -e .            # core
 pip install -e ".[web]"     # + browser ETC
-pip install -e ".[docs]"    # + Sphinx docs
+pip install -e ".[docs,web]"  # + Sphinx docs (the API page documents the web app)
 ```
 
 ## Quick start
@@ -48,7 +48,7 @@ LFASTETC("cshell_r43000", telescope=Telescope(n_telescopes=40, fiber="18um"),
 
 Everything is per resolution element; SNR per pixel is lower by about `sqrt(pixels_per_resel)`.
 The bundled sky is grey time (moon up), so faint-end numbers are 0.3-0.5 mag pessimistic for
-dark time. The docs (`docs/`, build with `make html`) have a quick start, the concepts, every
+dark time. The docs (`docs/`, build with `make html`, or hosted on Read the Docs once the project is connected) have a quick start, the concepts, every
 preset, the physics and its known limitations, and a plot gallery.
 
 ## Browser ETC
@@ -72,7 +72,7 @@ The notebooks are generated from those scripts; edit the scripts, not the `.ipyn
 ## Docs
 
 ```sh
-pip install -e ".[docs]"
+pip install -e ".[docs,web]"
 cd docs && make html         # needs pandoc on PATH for the notebooks
 ```
 

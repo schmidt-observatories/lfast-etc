@@ -41,6 +41,8 @@ Fixed
 
 Added
 
+* ``.readthedocs.yaml``: the Sphinx site builds on Read the Docs with the ``docs`` and ``web``
+  extras and pandoc (#26).
 * Plot helpers: ``ETCResult.plot_noise_budget``, ``plot_spectrum`` and ``simulate``,
   ``to_table``; ``LFASTETC.plot_throughput``, ``plot_sky``; ``Source.plot``;
   ``plotting.plot_vs_n_telescopes``, ``equivalent_diameter_axis``, ``sky_surface_brightness_ab``.
