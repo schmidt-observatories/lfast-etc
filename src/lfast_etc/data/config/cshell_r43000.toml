@@ -19,8 +19,10 @@ slit_throughput = 0.5    # PLACEHOLDER
 qe = 0.8               # placeholder flat QE
 dark_current = 5.0     # e-/s/pix: IRTF "dark + background" below 2.5 um (was 0.5, the 1993 paper's
                        # dark alone for the NICMOS-3 array); the fiber-fed LFAST feed may do better
-read_noise = 30.0      # e-/pix per read: IRTF quoted value for the 256x256 InSb (was 22, the 1993
-                       # paper's multiple-sampling target); assumes Fowler sampling, reads >= 8 s
+read_noise = 22.0      # e-/pix per read with Fowler sampling, reads >= 8 s (reference notebook; Greene
+                       # et al. 1993 multiple-sampling target of 20-25 e-). The IRTF page quotes ~30 e-
+                       # for the 256x256 InSb without stating the sampling mode; use
+                       # Instrument.from_preset(..., read_noise=30.0) for that case.
 full_well = 80000.0    # placeholder
 min_exptime = 8.0
 free_spectral_range_frac = 2.5e-3

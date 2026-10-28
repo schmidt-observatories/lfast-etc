@@ -148,7 +148,7 @@ def test_cshell_presets_follow_the_irtf_detector_and_dispersion():
         ins = Instrument.from_preset(name)
         assert ins.pixels_per_resel == npix
         assert ins.pixels_per_resel == pytest.approx(2.5 * 43000 / ins.resolving_power, rel=0.01)
-        assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (30.0, 5.0, 8.0)
+        assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (22.0, 5.0, 8.0)   # 22 e-: Fowler-sampled
         assert ins.free_spectral_range_frac == 2.5e-3 and ins.spectrograph_efficiency == 0.1
 
 
