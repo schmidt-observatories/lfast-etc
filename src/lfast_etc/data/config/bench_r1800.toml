@@ -2,10 +2,11 @@
 # 600 lpm grating @ 10.1 deg, lambda_central = 5500 A, delta_lambda = 2763 A.
 # Only 1-2 Bench configurations will be offered at the start of operations;
 # the spectrograph cannot be reconfigured during the night. LFAST uses 1x1 binning.
-# See http://www.wiyn.org/instruments/wiynspecoverview.html for all configurations.
+# The other Bench modes (bench_*.toml) are generated from this one by
+# scripts/build_bench_presets.py from the WIYN configuration table.
 [instrument]
 name = "bench_r1800"
-description = "WIYN Bench, 600 lpm grating, R~1800, 412-686 nm"
+description = "WIYN Bench, 600 @ 10.1 deg, order 1, 412-686 nm, R~1800 (reference notebook)"
 wavelength_min_nm = 412.0
 wavelength_max_nm = 686.0   # config spans to 688 nm; 687 nm is a K_opt=0 point (O2 B band)
 resolving_power = 1800.0

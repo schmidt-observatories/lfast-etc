@@ -127,6 +127,29 @@ def test_instrument_presets_load_and_override():
         Instrument.from_preset("bench_r1800", resolving_power=-5)
 
 
+@pytest.mark.parametrize("name", list_instruments())
+def test_every_preset_runs_inside_the_throughput_range(name):
+    ins = Instrument.from_preset(name)
+    lo, hi = Telescope().wavelength_range_nm
+    assert lo <= ins.wavelength_min_nm < ins.wavelength_max_nm <= hi
+    assert ins.description
+    etc = LFASTETC(name)
+    assert etc.wavelength.min() >= ins.wavelength_min_nm and etc.wavelength.max() <= ins.wavelength_max_nm
+    res = etc.snr(Source.blackbody(5800, mag=12, band="V"), exptime=600)
+    assert np.isfinite(np.nanmedian(res.snr)) and np.nanmedian(res.snr) > 0
+
+
+def test_bench_modes_follow_the_wiyn_table():
+    """R and efficiency scale from the bench_r1800 anchor (600 @ 10.1, 5500 A / 3.35 A, 72%)."""
+    bench = [n for n in list_instruments() if n.startswith("bench_")]
+    assert len(bench) == 15 and "bench_316_63p4_o14" not in bench   # that mode is < 400 nm
+    m = Instrument.from_preset("bench_316_63p4_o9")        # 6563 A / 0.23 A, 50%
+    assert abs(m.resolving_power - 1800 * (6563 / 0.23) / (5500 / 3.35)) < 1
+    assert abs(m.spectrograph_efficiency - 0.3 * 50 / 72) < 1e-3
+    assert (m.wavelength_min_nm, m.wavelength_max_nm) == (643.8, 668.8)
+    assert Instrument.from_preset("bench_600_13p9_o2").wavelength_min_nm == 400.0
+
+
 def test_sky_binning_vectorised_matches_loop():
     sky = Sky()
     wl = np.array([500.0, 800.0, 1500.0, 1799.0])
