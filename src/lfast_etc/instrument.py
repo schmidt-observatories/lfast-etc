@@ -109,6 +109,22 @@ class Instrument:
         """Spectrograph efficiency including slit losses (``S_opt * slit_throughput``)."""
         return self.spectrograph_efficiency * self.slit_throughput
 
+    def setting_window(self, center_nm):
+        """``(lo, hi)`` [nm] covered by one setting centred on ``center_nm``.
+
+        For an echelle with ``free_spectral_range_frac`` set (CSHELL) this is
+        one free spectral range, ``center_nm * (1 -/+ frac / 2)``; otherwise
+        the full instrument range. Pass the result as
+        ``LFASTETC(..., wavelength_min_nm=lo, wavelength_max_nm=hi)``.
+        """
+        c = positive("center_nm", center_nm)
+        if not self.wavelength_min_nm <= c <= self.wavelength_max_nm:
+            raise ValueError(f"center_nm={c} is outside {self.wavelength_min_nm}-{self.wavelength_max_nm} nm")
+        if self.free_spectral_range_frac is None:
+            return self.wavelength_min_nm, self.wavelength_max_nm
+        half = 0.5 * c * self.free_spectral_range_frac
+        return max(c - half, self.wavelength_min_nm), min(c + half, self.wavelength_max_nm)
+
     def describe(self):
         return (f"{self.name}: R={self.resolving_power:.0f}, "
                 f"{self.wavelength_min_nm:.0f}-{self.wavelength_max_nm:.0f} nm, "
