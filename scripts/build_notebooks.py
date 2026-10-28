@@ -12,6 +12,7 @@ from nbclient import NotebookClient
 
 OUT = Path(__file__).resolve().parents[1] / "notebooks"
 PREAMBLE = """import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from lfast_etc import LFASTETC, Source, Telescope, Instrument, Sky, list_instruments
 from lfast_etc.plotting import plot_snr_map, plot_limiting_magnitude, plot_vs_n_telescopes, equivalent_diameter_axis
@@ -40,16 +41,19 @@ nb("01_quickstart", [
 md("""
 # LFAST ETC quick start
 
-LFAST is an array of small telescopes: nominally 20 units of 0.726 m at Kitt Peak, each feeding
-a fiber, with the fibers merged into one spectrograph input. `lfast_etc` answers the two
+The LFAST prototype is an array of small telescopes: nominally 20 units of 0.726 m at Kitt Peak,
+each feeding an 18 micron fiber, with the fibers merged into one spectrograph input by a fiber
+combiner. `lfast_etc` answers the two
 questions every observer asks of such a system. How long do I need to expose to reach a given
 signal-to-noise ratio (SNR) on this target, and what SNR do I get in a given time?
 
 Two spectrographs are modelled: the WIYN Bench (visible; the preset used below is the R ~ 1800
-sample configuration) and CSHELL (1.08 to 1.75 um, R = 18,000 to 43,000). The throughput
-model follows Choi et al. (2026, SPIE 14147). The test suite reproduces the reference LFAST ETC
-notebook of 2026-10-12 to one part in a million, so the numbers here are those of the reference
-calculation.
+sample configuration) and CSHELL (near-infrared, 1.08 to 1.75 um, R = 18,000 to 43,000). The throughput
+model calculations are based on the work of Choi et al. (2026, SPIE 14147).
+
+A description of the Bench spectrograph, including modes and wavelength coverage, can be found here: https://www.wiyn.org/Instruments/wiynbench.html.
+
+A description of the CSHELL spectrograph, including modes and wavelength coverage, can be found here: https://irtfweb.ifa.hawaii.edu/~cshell/info.html
 
 After this notebook you will be able to build an ETC for any preset and array size, define a
 target, read exposure times and SNRs off the result object, see which noise term limits you, and
@@ -58,7 +62,7 @@ plot what the extracted spectrum would look like.
 ## One idea to hold on to: everything is per resolution element
 
 The spectrum is cut into bins one resolution element (resel) wide, $\\delta\\lambda = \\lambda/R$.
-In each bin the star delivers $N_*$ electrons per second (summed over the whole array), the sky
+In each bin the source delivers $N_*$ electrons per second (summed over the whole array), the sky
 delivers $N_{sky}$ electrons per second per pixel, and the resel is spread over $n_{pix}$ detector
 pixels (2.2 for the Bench, 2.5 for CSHELL). With dark current $D$, read noise $RN$ and a total
 exposure $t$ split into $n_{exp}$ reads, the SNR per resel is (Howell 2006)
@@ -81,6 +85,25 @@ and the sky table.
 code("""print(list_instruments())
 etc = LFASTETC("bench_r1800", n_telescopes=20)
 etc"""),
+md("""## Available instrument modes
+
+Each instrument mode is a preset: a set of spectrograph and detector parameters loaded by name. The
+table lists the bundled presets. *One setting* is the wavelength range a single exposure covers:
+the whole range for the Bench, but only one free spectral range (~2.5e-3 $\\lambda$) for CSHELL, so
+a CSHELL observation covers ~3 nm at 1.08 um and ~4 nm at 1.55 um (see below). Values marked as
+placeholders in the preset descriptions (CSHELL slit losses, full wells) are not yet measured."""),
+code("""rows = {}
+for name in list_instruments():
+    ins = Instrument.from_preset(name)
+    lo, hi = ins.setting_window(0.5*(ins.wavelength_min_nm + ins.wavelength_max_nm))
+    rows[name] = {"description": ins.description, "R": int(ins.resolving_power),
+                  "range (nm)": f"{ins.wavelength_min_nm:.0f}-{ins.wavelength_max_nm:.0f}",
+                  "one setting at centre (nm)": round(hi - lo, 1),
+                  "efficiency": ins.efficiency, "QE": ins.qe, "pix/resel": ins.pixels_per_resel,
+                  "read noise (e-)": ins.read_noise, "dark (e-/s/pix)": ins.dark_current,
+                  "min exptime (s)": ins.min_exptime}
+modes = pd.DataFrame(rows).T.rename_axis("preset")
+modes"""),
 md("""
 The grid has one point per resel. Here that is about 900 bins between 412 and 686 nm. The preset
 stops at 686 nm because the telescope throughput curve has a zero at the 687 nm O$_2$ band.
@@ -119,7 +142,8 @@ needed for SNR 50 per resel at each wavelength. Time rises steeply to the blue b
 throughput and this star's SED fall there. The H$\\alpha$ line shows up as a spike: fewer photons
 in the line, more time needed.
 """),
-code("""res = etc.exptime(src, snr=50)
+code("""snr = 50
+res = etc.exptime(src, snr=snr)
 res.plot()
 res.summary()"""),
 md("""
@@ -137,7 +161,7 @@ reaches the target set above.
 """),
 code("""res = etc.snr(src, exptime=600)
 ax = res.plot()
-ax.axhline(50, color='0.4', ls='--')
+ax.axhline(snr, color='0.4', ls='--')
 res.summary()['snr']"""),
 md("""
 ## Which noise term limits you?
@@ -172,24 +196,30 @@ axis, brighter is up), with the sky electron rate per pixel in the 18 um fiber i
 magnitude fainter. The spikes are airglow lines.
 """),
 code("""etc.plot_sky();"""),
-md("""
-## Switching instruments and overriding parameters
+md("""## Switching instruments: one CSHELL setting
 
-CSHELL is an echelle with a small free spectral range, about 2.5e-3 of the wavelength, so one
-setting covers about 40 A at 1.55 um. Restrict the grid to the setting you care about. Any
-instrument field can be overridden through `Instrument.from_preset(name, **overrides)` or
-`instrument.replace(...)`; the example lowers the read noise to see how much it matters for a
-bright K star in 300 s.
-"""),
-code("""cshell = LFASTETC("cshell_r18000", wavelength_min_nm=1550, wavelength_max_nm=1554)
+CSHELL is a single-order echelle: its free spectral range is only ~2.5e-3 $\\lambda$, so one setting
+covers a narrow window (~4 nm at 1.55 um). `Instrument.setting_window(center_nm)` returns the
+window of one setting, which is then passed to the ETC to restrict the wavelength grid."""),
+code("""cs = Instrument.from_preset("cshell_r18000")
+lo, hi = cs.setting_window(1555.0)
+print(f"One CSHELL setting centred on 1555 nm covers {lo:.1f}-{hi:.1f} nm ({10*(hi - lo):.0f} A)")
+
+cshell = LFASTETC(cs, wavelength_min_nm=lo, wavelength_max_nm=hi)
 kstar = Source.blackbody(4500, mag=9, band="H")
 r = cshell.snr(kstar, exptime=300)
-print("CSHELL R=18k, H=9 K star, 300 s: median SNR/resel =", round(float(np.nanmedian(r.snr)), 1),
-      "| peak e-/pix =", int(np.nanmax(r.peak_e_per_pixel)), "| saturated:", bool(r.saturated.any()))
+print(f"H=9 K star, 300 s: median SNR/resel = {np.nanmedian(r.snr):.1f} | peak = {np.nanmax(r.peak_e_per_pixel):.0f} e-/pix | saturated: {bool(r.saturated.any())}")"""),
+md("""## Overriding instrument parameters
 
-lowRN = Instrument.from_preset("cshell_r18000", read_noise=5.0)
-r2 = LFASTETC(lowRN, wavelength_min_nm=1550, wavelength_max_nm=1554).snr(kstar, exptime=300)
-print("same with RN = 5 e-:", round(float(np.nanmedian(r2.snr)), 1))"""),
+Every preset field can be changed, which is how to test design choices: `Instrument.from_preset(name, **overrides)`
+builds a modified preset and `instrument.replace(...)` copies an existing one with some fields changed.
+For example, what would a lower-noise detector buy CSHELL? Here its read noise drops from 22 to 5 e-:"""),
+code("""low_rn = cs.replace(read_noise=5.0)
+r2 = LFASTETC(low_rn, wavelength_min_nm=lo, wavelength_max_nm=hi).snr(kstar, exptime=300)
+for label, rr, ins in (("preset", r, cs), ("override", r2, low_rn)):
+    print(f"{label:8s}: read noise {ins.read_noise:4.0f} e-  ->  median SNR/resel = {np.nanmedian(rr.snr):.1f}")"""),
+md("""At H = 9 the star's own photon noise dominates, so the gain is small (~8%); for fainter
+targets, where read noise is a larger share of the noise, the same change is worth much more."""),
 md("""
 ## Scaling the array
 
@@ -199,12 +229,22 @@ detector noise is paid once. The 50 um fiber does not go through the combiner, s
 produces its own spectrum that is co-added afterwards (`combine="independent"`), and the SNR
 grows as $\\sqrt{N}$. For a faint star the fiber mode wins once read noise matters.
 """),
-code("""faint = Source.blackbody(5800, mag=19, band="V")
-for n in (1, 5, 20, 50):
+code("""faint_source = Source.blackbody(5800, mag=19, band="V")
+snr_faint = 10
+rows = {}
+for n in (20, 100, 200):
+    row = {}
     for fiber in ("18um", "50um"):
         e = LFASTETC("bench_r1800", telescope=Telescope(n_telescopes=n, fiber=fiber))
-        t = e.exptime(faint, snr=20)
-        print(f"N={n:3d} {fiber}: median t(SNR=20) = {np.nanmedian(t.exptime)/60:7.1f} min  [{e.telescope.combine}]")"""),
+        row[f"{fiber} inputs"] = e.telescope.n_inputs
+        row[f"{fiber} time (min)"] = round(float(np.nanmedian(e.exptime(faint_source, snr=snr_faint).exptime))/60, 1)
+    rows[n] = row
+pd.DataFrame(rows).T.rename_axis("N telescopes").astype({"18um inputs": int, "50um inputs": int})"""),
+md("""With the 18 um fiber, 5x more telescopes cut the time by ~4x and 10x by ~7x. Co-adding the
+inputs raises the SNR by $\\sqrt{n_{inputs}}$ at fixed time; that is worth a factor $n_{inputs}$ in
+time only when the sky dominates the noise, and less here because read noise still contributes for
+this faint star. The 50 um fiber is slower at every N: it collects more sky per telescope and pays
+read noise once per telescope."""),
 md("""
 ## Your own spectrum
 
