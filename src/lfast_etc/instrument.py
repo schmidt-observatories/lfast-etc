@@ -74,15 +74,18 @@ class Instrument:
             setattr(self, f, positive(f, getattr(self, f), allow_zero=True))
         if not callable(self.qe):
             self.qe = positive("qe", self.qe)
+        for f in ("spectrograph_efficiency", "slit_throughput") + (() if callable(self.qe) else ("qe",)):
+            if getattr(self, f) > 1:
+                raise ValueError(f"{f} is an efficiency and must be <= 1, got {getattr(self, f)}")
         if self.wavelength_max_nm <= self.wavelength_min_nm:
             raise ValueError("wavelength_max_nm must exceed wavelength_min_nm")
 
     @classmethod
-    def from_preset(cls, name, **overrides):
-        """Load a bundled preset (see :func:`list_instruments`), optionally overriding fields."""
-        path = CONFIG_DIR / f"{name}.toml"
-        if name not in list_instruments():
-            raise ValueError(f"Unknown instrument {name!r}; available: {list_instruments()}")
+    def from_preset(cls, preset, **overrides):
+        """Load a bundled preset (see :func:`list_instruments`), optionally overriding any field (``name`` included)."""
+        path = CONFIG_DIR / f"{preset}.toml"
+        if preset not in list_instruments():
+            raise ValueError(f"Unknown instrument {preset!r}; available: {list_instruments()}")
         with open(path, "rb") as f:
             cfg = tomllib.load(f)["instrument"]
         cfg.update(overrides)

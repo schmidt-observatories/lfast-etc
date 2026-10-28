@@ -1,0 +1,47 @@
+Changelog
+=========
+
+Unreleased
+----------
+
+Code review, notebooks and documentation pass (see the GitHub issues #2 to #30 for the full list).
+
+Fixed
+
+* An explicit ``wavelength_min_nm``/``wavelength_max_nm`` is now clipped to the preset bandpass
+  as well as to the data range, with a clear error when nothing is left (#2).
+* A float ``wavelength`` selector outside the grid raises instead of snapping to the edge bin (#3).
+* Web: the zero-throughput fraction follows the solved quantity (#4); summary percentiles are
+  ``null`` rather than bare ``NaN`` for all-NaN ranges (#5).
+* ``n_telescopes=0`` raises instead of falling back to 20 (#6).
+* ``ETCResult.at`` interpolates across NaN bins instead of into them (#7).
+* Finite-value checks on magnitudes, exposure times, line parameters, ``reads_needed`` margin;
+  efficiencies bounded by 1; clearer web messages for ``inf`` (#8).
+* ``Instrument.from_preset(preset, **overrides)`` can override ``name``; ``from_arrays`` with a
+  bad band raises ``ValueError`` (#9).
+* Science notebooks 06-10 no longer require the gitignored ``memo/figures`` directory (#10).
+* ``Telescope`` warns for the 50 um fiber through the combiner (#11).
+
+Added
+
+* Plot helpers: ``ETCResult.plot_noise_budget``, ``plot_spectrum`` and ``simulate``,
+  ``to_table``; ``LFASTETC.plot_throughput``, ``plot_sky``; ``Source.plot``;
+  ``plotting.plot_vs_n_telescopes``, ``equivalent_diameter_axis``, ``sky_surface_brightness_ab``.
+* The ten notebooks rewritten as a walkthrough for new users, with checks and exercises.
+* This documentation: concepts, instruments (preset table generated from the TOML files),
+  telescope, sources, sky, sensitivity, plot gallery, web API, contributing.
+* GitHub Actions: tests on Python 3.11-3.13 and a documentation build.
+
+Changed
+
+* Documentation theme is ``pydata_sphinx_theme`` (as for the WCC ETC).
+* The duplicated wavelength-selector and box-band code paths are merged.
+
+0.1.0 (2026-10-21)
+------------------
+
+* First release: per-resel ETC reproducing the reference LFAST ETC notebook (2026-10-12) to 1e-6;
+  WIYN Bench reference mode plus 14 modes from the WIYN configuration table; three CSHELL modes;
+  18 um / 50 um fibers with the combiner model and ``telescopes_per_input``; sensitivity maps,
+  limiting magnitudes, exposure versus magnitude, ``reads_needed``; Flask/Bokeh browser ETC with
+  a JSON API; notebooks 01-10; independent review (``review_report``).

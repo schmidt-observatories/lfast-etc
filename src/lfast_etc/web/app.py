@@ -42,14 +42,14 @@ def _num(form, key, lo=None, hi=None, kind=float, required=True):
         return None
     try:
         v = float(raw)
-        if kind is int:
-            if v != int(v):
-                raise ValueError(f"'{key}' must be an integer, got {raw!r}")
-            v = int(v)
-    except ValueError as e:
-        raise ValueError(str(e) if "integer" in str(e) else f"'{key}' must be a number, got {raw!r}")
+    except ValueError:
+        raise ValueError(f"'{key}' must be a number, got {raw!r}") from None
     if not math.isfinite(v):
         raise ValueError(f"'{key}' must be finite")
+    if kind is int:
+        if v != int(v):
+            raise ValueError(f"'{key}' must be an integer, got {raw!r}")
+        v = int(v)
     if lo is not None and v < lo:
         raise ValueError(f"'{key}' must be >= {lo}")
     if hi is not None and v > hi:
@@ -105,19 +105,24 @@ def build(form):
     return etc, src, res, mode
 
 
-def summarize(etc, src, res):
+def _finite(v):
+    return None if not np.isfinite(v) else float(v)   # NaN is not JSON
+
+
+def summarize(etc, src, res, mode="snr"):
     s = res.summary()
     lim = etc.limiting_magnitude(src, exptime=3600, snr=10, wavelength=BANDS[src.band][0]) \
         if etc.wavelength.min() <= BANDS[src.band][0] <= etc.wavelength.max() else \
         etc.limiting_magnitude(src, exptime=3600, snr=10)
+    solved = res.exptime if mode == "exptime" else res.snr
     return {
-        "exptime": {str(k): float(v) for k, v in s["exptime"].items()},
-        "snr": {str(k): float(v) for k, v in s["snr"].items()},
+        "exptime": {str(k): _finite(v) for k, v in s["exptime"].items()},
+        "snr": {str(k): _finite(v) for k, v in s["snr"].items()},
         "saturated_fraction": s["saturated_fraction"],
         "below_min_exptime_fraction": s["below_min_exptime_fraction"],
-        "nan_fraction": float(np.mean(np.isnan(res.snr))),
+        "nan_fraction": float(np.mean(np.isnan(solved))),
         "n_bins": s["n_bins"],
-        "limiting_mag_snr10_1hr": None if not np.isfinite(lim) else float(lim),
+        "limiting_mag_snr10_1hr": _finite(lim),
         "limiting_mag_band": src.band,
         "limiting_mag_system": src.system,
     }
@@ -196,7 +201,7 @@ def create_app():
             form.update({k: v for k, v in request.form.items() if k in DEFAULTS})
             try:
                 etc, src, res, mode = build(form)
-                ctx["summary"] = summarize(etc, src, res)
+                ctx["summary"] = summarize(etc, src, res, mode)
                 ctx["describe"] = f"{src.describe()}\n{etc.describe()}"
                 ctx["plot_script"], ctx["plot_divs"], ctx["plot_note"] = make_plots(etc, res, mode)
                 ctx["mode_label"] = mode
@@ -221,7 +226,7 @@ def create_app():
             wavelength=res.wavelength[sl].tolist(), exptime=nan_to_none(res.exptime[sl]),
             snr=nan_to_none(res.snr[sl]), saturated=res.saturated[sl].tolist(),
             below_min_exptime=res.below_min_exptime[sl].tolist(),
-            summary=summarize(etc, src, res),
+            summary=summarize(etc, src, res, mode),
         )
 
     return app

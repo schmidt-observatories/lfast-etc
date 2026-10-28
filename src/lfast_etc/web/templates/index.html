@@ -115,9 +115,9 @@
     <table>
       <tr><th></th><th>10%</th><th>50%</th><th>90%</th></tr>
       <tr><td>Exposure time (s){% if mode_label == "exptime" %} — solved{% endif %}</td>
-        {% for p in ("10", "50", "90") %}<td>{{ "%.4g"|format(summary.exptime[p]) }}</td>{% endfor %}</tr>
+        {% for p in ("10", "50", "90") %}<td>{% if summary.exptime[p] is none %}n/a{% else %}{{ "%.4g"|format(summary.exptime[p]) }}{% endif %}</td>{% endfor %}</tr>
       <tr><td>SNR per resel{% if mode_label == "snr" %} — solved{% endif %}</td>
-        {% for p in ("10", "50", "90") %}<td>{{ "%.4g"|format(summary.snr[p]) }}</td>{% endfor %}</tr>
+        {% for p in ("10", "50", "90") %}<td>{% if summary.snr[p] is none %}n/a{% else %}{{ "%.4g"|format(summary.snr[p]) }}{% endif %}</td>{% endfor %}</tr>
       <tr><td>Saturated bins</td><td colspan="3">{{ "%.1f"|format(100 * summary.saturated_fraction) }}%</td></tr>
       <tr><td>Reads shorter than the instrument minimum</td><td colspan="3">{{ "%.1f"|format(100 * summary.below_min_exptime_fraction) }}%</td></tr>
       <tr><td>Bins with zero throughput (telluric cores, NaN)</td><td colspan="3">{{ "%.1f"|format(100 * summary.nan_fraction) }}%</td></tr>

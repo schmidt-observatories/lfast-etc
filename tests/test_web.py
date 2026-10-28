@@ -57,6 +57,17 @@ def test_api_nan_bins_are_null(client):
     assert "below_min_exptime" in d
 
 
+def test_api_summary_never_emits_nan_and_counts_nan_bins_of_the_solved_quantity(client):
+    r = client.get("/api/calc?instrument=cshell_r18000&band=J&wmin=1370.1&wmax=1370.9")
+    assert r.status_code == 200 and b"NaN" not in r.data
+    assert r.get_json()["summary"]["exptime"]["50"] is None
+    r = client.get("/api/calc?instrument=cshell_r18000&band=J&mag=10&mode=exptime&snr=10")
+    d = r.get_json()
+    assert d["summary"]["nan_fraction"] > 0 and any(v is None for v in d["exptime"])
+    r = client.get("/api/calc?instrument=bench_r1800&n_telescopes=inf&mode=snr&exptime=300")
+    assert r.status_code == 400 and b"finite" in r.data
+
+
 def test_web_rejects_huge_resolving_power_and_fractional_telescopes(client):
     r = client.get("/api/calc?instrument=cshell_r43000&resolving_power=1e9&mode=snr&exptime=300")
     assert r.status_code == 400

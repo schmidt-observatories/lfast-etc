@@ -61,7 +61,7 @@ narrower than the table sampling). With the fiber solid angle :math:`\Omega`,
 .. math:: N_{sky}(\lambda_j) = \frac{N\,A\,\Omega\,(K_{opt}/\eta_{fib})\,S_{opt}\,QE\,
    B_{sky}\,\delta\lambda_j}{n_{pix}} \quad [\mathrm{e^-\,s^{-1}\,pixel^{-1}}].
 
-Pass ``Sky(path, scale)`` to use another SkyCalc file or a crude moon scaling.
+Pass ``Sky(path, scale)`` to use another SkyCalc file or a crude moon scaling (see :doc:`sky`).
 
 SNR and exposure time
 ---------------------
@@ -106,8 +106,8 @@ Known limitations
 * One sky table at airmass 1.3, sampled at R=20,000; no airmass or moon-phase model beyond a
   scale factor. For the CSHELL presets (R > 20,000) each resel takes the nearest sample, so
   airglow lines are pre-smoothed to R=20,000; regenerate a finer SkyCalc table for line-level work.
-* :math:`K_{opt}` is sampled at 1 nm with single-sample zeros at telluric cores; the telluric
-  treatment is coarse and belongs to the airmass assumed by Choi et al., not necessarily 1.3.
+* :math:`K_{opt}` is sampled at 1 nm; the telluric treatment is coarse and belongs to the
+  airmass assumed by Choi et al., not necessarily 1.3.
 * Reads shorter than ``Instrument.min_exptime`` (8 s Fowler minimum for CSHELL) are flagged in
   ``ETCResult.below_min_exptime``; the read noise is not adjusted.
 * No telluric absorption in the *source* path unless ``apply_extinction=True`` (and then the
@@ -115,6 +115,10 @@ Known limitations
 * Blackbody SEDs only, unless you supply a spectrum.
 * No line-spread function: spectral lines are averaged over the resel (equivalent width
   preserved) but not convolved with the instrument profile.
-* :math:`K_{opt}` has single-sample zeros at telluric cores (687 nm O2 B band, 1355-1420 nm
-  H2O); those bins are NaN and the Bench preset stops at 686 nm for that reason.
-* The default sky is grey time (moon up); see :doc:`usage` for a dark-time proxy.
+* :math:`K_{opt}` has exact zeros at 761 nm and in the 1355-1420 nm water band (those bins are
+  NaN) and near-zero samples elsewhere (4.6e-9 at the 687 nm O2 B band, where the Bench preset
+  stops; 950 nm). Because the curve is interpolated between 1 nm samples, a near-zero sample
+  gives a large but finite exposure time rather than NaN; see the open issue on a threshold.
+* The default sky is grey time (moon up); see :doc:`sky` for a dark-time proxy.
+* ``grid="uniform"`` samples the band every ``step_nm`` but every bin stays one resel wide, so
+  it over- or undersamples; it exists for plotting on a regular grid, not for summing counts.

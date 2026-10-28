@@ -33,9 +33,11 @@ from lfast_etc import LFASTETC, Source, Telescope
 etc = LFASTETC("bench_r1800", n_telescopes=20)          # presets: list_instruments()
 star = Source.blackbody(5800, mag=15, band="V")
 res = etc.exptime(star, snr=50)                         # per resolution element
-res.plot(); res.summary(); res.at(550.0)
+res.plot(); res.summary(); res.at(550.0); res.to_table()
 
 res = etc.snr(star, exptime=600, n_exp=3)               # SNR for 600 s in 3 reads
+res.plot_noise_budget(); res.plot_spectrum()            # what limits you; what the spectrum looks like
+etc.plot_throughput(); etc.plot_sky(); star.plot()
 etc.limiting_magnitude(star, exptime=900, snr=10, wavelength=(500, 650))
 etc.snr_grid(star, mags, exptimes, wavelength=(500, 650))   # sensitivity map
 
@@ -43,6 +45,11 @@ etc.snr_grid(star, mags, exptimes, wavelength=(500, 650))   # sensitivity map
 LFASTETC("cshell_r43000", telescope=Telescope(n_telescopes=40, fiber="18um"),
          wavelength_min_nm=1081, wavelength_max_nm=1086)
 ```
+
+Everything is per resolution element; SNR per pixel is lower by about `sqrt(pixels_per_resel)`.
+The bundled sky is grey time (moon up), so faint-end numbers are 0.3-0.5 mag pessimistic for
+dark time. The docs (`docs/`, build with `make html`) have a quick start, the concepts, every
+preset, the physics and its known limitations, and a plot gallery.
 
 ## Browser ETC
 
@@ -53,12 +60,14 @@ lfast-etc-web --port 5000     # http://127.0.0.1:5000  (JSON at /api/calc?...)
 
 ## Notebooks
 
-`notebooks/` holds executed examples. 01-05 (rebuild with `python scripts/build_notebooks.py`):
-quick start, brightness sensitivity maps and array scaling, stellar metallicity, TDAMM
-follow-up, exoplanet atmospheres (He 10830) with CSHELL. 06-10 (rebuild with
-`python scripts/build_science_notebooks.py`) survey science cases versus the array size
+`notebooks/` holds executed examples, written as a walkthrough for someone new to the package.
+Start with 01 (the whole API, with checks and exercises at the end). 01-05 are rebuilt with
+`python scripts/build_notebooks.py`: quick start, sensitivity maps and array scaling, stellar
+metallicity, transient classification, exoplanet atmospheres (He 10830) with CSHELL. 06-10
+(`python scripts/build_science_notebooks.py`) compare science cases versus the array size
 (20 telescopes, 10 m equivalent = 200, 30 m equivalent = 1720): array-scaling overview,
 LSST-era time domain, Galactic archaeology, stellar activity and flares, CSHELL NIR science.
+The notebooks are generated from those scripts; edit the scripts, not the `.ipynb` files.
 
 ## Docs
 
@@ -72,6 +81,10 @@ cd docs && make html         # needs pandoc on PATH for the notebooks
 ```sh
 pytest
 ```
+
+CI (GitHub Actions) runs the tests on Python 3.11-3.13 and builds the docs on every push and
+pull request. Bugs and planned features are tracked in the
+[issues](https://github.com/schmidt-observatories/lfast-etc/issues), labelled by area and priority.
 
 ## Layout
 
