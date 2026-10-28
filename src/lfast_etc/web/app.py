@@ -99,14 +99,19 @@ def build(form):
     n_exp = _num(form, "n_exp", lo=1, hi=100000, kind=int)
     mode = _choice(form, "mode", ("exptime", "snr"))
     if mode == "exptime":
-        res = etc.exptime(src, snr=_num(form, "snr", lo=1e-6), n_exp=n_exp)
+        res = etc.exptime(src, snr=_num(form, "snr", lo=1e-6, hi=1e6), n_exp=n_exp)
     else:
-        res = etc.snr(src, exptime=_num(form, "exptime", lo=1e-6), n_exp=n_exp)
+        res = etc.snr(src, exptime=_num(form, "exptime", lo=1e-6, hi=1e9), n_exp=n_exp)
     return etc, src, res, mode
 
 
 def _finite(v):
-    return None if not np.isfinite(v) else float(v)   # NaN is not JSON
+    """JSON-safe number(s): every NaN/inf becomes ``null`` (#47)."""
+    if v is None:
+        return None
+    if np.ndim(v):
+        return [_finite(x) for x in v]
+    return float(v) if np.isfinite(v) else None
 
 
 def summarize(etc, src, res, mode="snr"):
@@ -118,8 +123,8 @@ def summarize(etc, src, res, mode="snr"):
     return {
         "exptime": {str(k): _finite(v) for k, v in s["exptime"].items()},
         "snr": {str(k): _finite(v) for k, v in s["snr"].items()},
-        "saturated_fraction": s["saturated_fraction"],
-        "below_min_exptime_fraction": s["below_min_exptime_fraction"],
+        "saturated_fraction": _finite(s["saturated_fraction"]),
+        "below_min_exptime_fraction": _finite(s["below_min_exptime_fraction"]),
         "nan_fraction": float(np.mean(np.isnan(solved))),
         "n_bins": s["n_bins"],
         "limiting_mag_snr10_1hr": _finite(lim),
@@ -220,11 +225,10 @@ def create_app():
             return jsonify(error=str(e) or e.__class__.__name__), 400
         step = _decimate(len(res.wavelength), MAX_API_POINTS)
         sl = slice(None, None, step)
-        nan_to_none = lambda a: [None if np.isnan(v) else float(v) for v in a]   # NaN is not JSON
         return jsonify(
             mode=mode, decimation=step, describe=etc.describe(), source=src.describe(),
-            wavelength=res.wavelength[sl].tolist(), exptime=nan_to_none(res.exptime[sl]),
-            snr=nan_to_none(res.snr[sl]), saturated=res.saturated[sl].tolist(),
+            wavelength=res.wavelength[sl].tolist(), exptime=_finite(res.exptime[sl]),
+            snr=_finite(res.snr[sl]), saturated=res.saturated[sl].tolist(),
             below_min_exptime=res.below_min_exptime[sl].tolist(),
             summary=summarize(etc, src, res, mode),
         )

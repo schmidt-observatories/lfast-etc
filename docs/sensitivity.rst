@@ -64,10 +64,12 @@ reads_needed
     n = etc.reads_needed(source, exptime=300, margin=0.8)
     res = etc.snr(source, 300, n_exp=n)
 
-The smallest number of reads that keeps the brightest pixel below ``margin * full_well`` in a
-total exposure. The brightest pixel is approximated as a uniform share of the resel on one
-physical detector, so the estimate is optimistic (see :doc:`physics`). Notebook 05 uses it to
-split bright He 10830 hosts into reads.
+The smallest number of reads that keeps the brightest pixel below ``margin * full_well``
+(``0 < margin <= 1``) in a total exposure; 1 when the instrument's full well is unknown. The
+brightest pixel is approximated as a uniform share of the resel on the most heavily loaded
+detector, so the estimate is optimistic (see :doc:`physics`). Reads shorter than
+``Instrument.min_exptime`` are not prevented: check ``ETCResult.below_min_exptime``. Notebook 05
+uses it to split bright He 10830 hosts into reads.
 
 Array scaling
 -------------

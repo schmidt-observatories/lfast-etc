@@ -55,6 +55,7 @@ class ETCResult:
     peak_e_per_pixel: np.ndarray   # brightest physical pixel per read (approx.)
     saturated: np.ndarray
     below_min_exptime: np.ndarray  # per-read time shorter than Instrument.min_exptime
+    full_well: float = float("inf")   # inf: unknown, saturation not assessed
     source: str = ""
     setup: str = ""
     title: str = ""
@@ -71,7 +72,8 @@ class ETCResult:
         return out
 
     def summary(self, percentiles=(10, 50, 90)):
-        """Percentiles of ``snr`` and ``exptime`` over the band, plus a saturation flag."""
+        """Percentiles of ``snr`` and ``exptime`` over the band, plus a saturation flag
+        (``saturated_fraction`` is ``None`` when the instrument's full well is unknown)."""
         def pct(a):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)       # all-NaN band -> NaN, quietly
@@ -79,7 +81,7 @@ class ETCResult:
         return {
             "snr": pct(self.snr),
             "exptime": pct(self.exptime),
-            "saturated_fraction": float(np.mean(self.saturated)),
+            "saturated_fraction": float(np.mean(self.saturated)) if np.isfinite(self.full_well) else None,
             "below_min_exptime_fraction": float(np.mean(self.below_min_exptime)),
             "n_bins": int(len(self.wavelength)),
         }
@@ -295,7 +297,8 @@ class LFASTETC:
         a = s ** 2
         bq = -(snr ** 2) * (s + b)
         c = -(snr ** 2) * n_pix * n_exp * rn ** 2
-        t = (-bq + np.sqrt(bq ** 2 - 4 * a * c)) / (2 * a)
+        with np.errstate(over="ignore"):             # overflow -> inf, flagged in _result
+            t = (-bq + np.sqrt(bq ** 2 - 4 * a * c)) / (2 * a)
         return np.where(n_star > 0, t, np.nan)
 
     @staticmethod
@@ -307,21 +310,25 @@ class LFASTETC:
     def _result(self, source, r, t, snr, n_exp, solved_for):
         t = np.broadcast_to(np.asarray(t, float), self.wavelength.shape).copy()
         snr = np.broadcast_to(np.asarray(snr, float), self.wavelength.shape).copy()
-        # ponytail: peak pixel = uniform share of the resel on ONE physical
-        # detector; a real LSF peaks higher. In independent mode the rates in
-        # ``r`` are summed over the N detectors, so divide them back out.
-        nd = self._n_detector
-        peak = ((r["n_star"] / r["n_pix"] + r["n_sky_pix"]) / nd
+        # ponytail: peak pixel = uniform share of the resel on the most heavily
+        # loaded detector; a real LSF peaks higher. The rates in ``r`` are
+        # whole-array, so scale to the brightest input's share of the telescopes
+        # (a full 20-group for N=21, not N/2: #36).
+        tel = self.telescope
+        share = tel.telescopes_on_brightest_input / tel.n_telescopes
+        peak = ((r["n_star"] / r["n_pix"] + r["n_sky_pix"]) * share
                 + self.instrument.dark_current) * t / n_exp
         with np.errstate(invalid="ignore"):
             saturated = peak > self.instrument.full_well
             below_min = (t / n_exp) < self.instrument.min_exptime
+        if np.any((r["n_star"] > 0) & ~(np.isfinite(t) & np.isfinite(snr))):
+            raise ValueError("numerical overflow: snr or exptime is out of float range")
         return ETCResult(
             wavelength=self.wavelength, delta_lambda=self.delta_lambda, snr=snr, exptime=t,
             n_star=r["n_star"], n_sky_pix=r["n_sky_pix"], dark_pix=r["dark_pix"],
             read_noise=r["read_noise"], n_pix=r["n_pix"], n_exp=n_exp,
             peak_e_per_pixel=peak, saturated=saturated, below_min_exptime=below_min,
-            source=source.describe(), setup=self.describe(), solved_for=solved_for,
+            full_well=self.instrument.full_well, source=source.describe(), setup=self.describe(), solved_for=solved_for,
             title=f"{source.describe()} | {self.instrument.name}, {self.telescope.n_telescopes} telescopes ({self.telescope.combine})")
 
     def snr(self, source, exptime, n_exp=1):
@@ -432,8 +439,11 @@ class LFASTETC:
 
     def reads_needed(self, source, exptime, margin=0.8):
         """Smallest ``n_exp`` keeping the brightest pixel below ``margin * full_well``
-        in a total exposure ``exptime`` [s] (1 if nothing saturates)."""
+        (``0 < margin <= 1``) in a total exposure ``exptime`` [s]; 1 if nothing
+        saturates or the full well is unknown."""
         margin = positive("margin", margin)
+        if margin > 1:
+            raise ValueError(f"margin is a fraction of the full well and must be <= 1, got {margin}")
         peak = self.snr(source, exptime, n_exp=1).peak_e_per_pixel
         return int(max(1, np.ceil(np.nanmax(peak) / (margin * self.instrument.full_well))))
 

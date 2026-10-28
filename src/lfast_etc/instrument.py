@@ -42,7 +42,9 @@ class Instrument:
     read_noise : float
         e-/pixel per read.
     full_well : float
-        e-/pixel saturation level (used for the saturation flag only).
+        e-/pixel saturation level (used for the saturation flag only). ``inf``
+        or ``None`` means unknown: nothing is flagged and
+        ``ETCResult.summary()["saturated_fraction"]`` is ``None``.
     min_exptime : float
         Shortest exposure [s] for which ``read_noise`` applies (e.g. the
         Fowler-sampling minimum). Results flag reads shorter than this in
@@ -61,15 +63,19 @@ class Instrument:
     slit_throughput: float = 1.0
     dark_current: float = 0.0
     read_noise: float = 0.0
-    full_well: float = float("inf")
+    full_well: float | None = float("inf")
     min_exptime: float = 0.0
     free_spectral_range_frac: float | None = None
     description: str = ""
 
     def __post_init__(self):
         for f in ("wavelength_min_nm", "wavelength_max_nm", "resolving_power", "pixels_per_resel",
-                  "spectrograph_efficiency", "slit_throughput", "full_well"):
+                  "spectrograph_efficiency", "slit_throughput"):
             setattr(self, f, positive(f, getattr(self, f)))
+        if self.full_well is None or self.full_well == float("inf"):
+            self.full_well = float("inf")                 # unknown: saturation not assessed
+        else:
+            self.full_well = positive("full_well", self.full_well)
         for f in ("dark_current", "read_noise", "min_exptime"):
             setattr(self, f, positive(f, getattr(self, f), allow_zero=True))
         if not callable(self.qe):

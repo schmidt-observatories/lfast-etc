@@ -111,6 +111,16 @@ class Telescope:
         return -(-self.n_telescopes // self.telescopes_per_input)
 
     @property
+    def telescopes_on_brightest_input(self):
+        """Telescopes feeding the most heavily loaded input: inputs fill in packed
+        groups of ``telescopes_per_input``, so N=21 is one full group plus one."""
+        if self.combine == "independent":
+            return 1
+        if self.telescopes_per_input is None:
+            return self.n_telescopes
+        return min(self.n_telescopes, self.telescopes_per_input)
+
+    @property
     def equivalent_diameter_m(self):
         """Diameter of a single telescope with the same collecting area [m]."""
         return self.diameter_m * np.sqrt(self.n_telescopes)
