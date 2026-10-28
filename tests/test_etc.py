@@ -141,6 +141,17 @@ def test_every_preset_runs_inside_the_throughput_range(name):
     assert np.isfinite(np.nanmedian(res.snr)) and np.nanmedian(res.snr) > 0
 
 
+def test_cshell_presets_follow_the_irtf_detector_and_dispersion():
+    """Detector numbers from the IRTF CSHELL page; pixels per resel scale as 2.5 x 43,000 / R
+    (2.7 km/s per pixel), slit losses and efficiency stay placeholders."""
+    for name, npix in (("cshell_r18000", 6.0), ("cshell_r21500", 5.0), ("cshell_r43000", 2.5)):
+        ins = Instrument.from_preset(name)
+        assert ins.pixels_per_resel == npix
+        assert ins.pixels_per_resel == pytest.approx(2.5 * 43000 / ins.resolving_power, rel=0.01)
+        assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (30.0, 5.0, 8.0)
+        assert ins.free_spectral_range_frac == 2.5e-3 and ins.spectrograph_efficiency == 0.1
+
+
 def test_bench_modes_follow_the_wiyn_table():
     """R and efficiency scale from the bench_r1800 anchor (600 @ 10.1, 5500 A / 3.35 A, 72%)."""
     bench = [n for n in list_instruments() if n.startswith("bench_")]

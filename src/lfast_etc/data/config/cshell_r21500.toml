@@ -1,17 +1,26 @@
-# CSHELL with the 200 um slit. Slit throughput loss is TBD ("XX%" in the
-# reference notebook); 0.75 is a placeholder -- update when measured.
+# CSHELL on LFAST: the former IRTF cryogenic echelle (Greene et al. 1993, SPIE 1946,
+# copy in input/greene_1993.pdf; IRTF page https://irtfweb.ifa.hawaii.edu/~cshell/info.html).
+# Detector numbers are the instrument's own and survive the move; the optical numbers
+# (R per mode, slit loss, efficiency) depend on the LFAST fiber feed and are placeholders.
+# CSHELL covers ~1.08-1.75 um on LFAST. One setting covers only ~2.5e-3 lambda
+# (256 pixels at 2.7 km/s per pixel: 27 A at 1.08 um, 39 A at 1.555 um, 44 A at 1.75 um),
+# so set wavelength limits to the window of interest.
+# With the 200 um slit. Slit throughput loss is TBD ("XX%" in the reference notebook);
+# 0.75 is a placeholder -- update when measured on the LFAST feed.
 [instrument]
 name = "cshell_r21500"
 description = "CSHELL, 200 um slit, R=21,500, 1.08-1.75 um (slit loss placeholder)"
 wavelength_min_nm = 1080.0
 wavelength_max_nm = 1750.0
 resolving_power = 21500.0
-pixels_per_resel = 2.5    # dispersion direction only (reference notebook); x fiber-image height when known
+pixels_per_resel = 5.0    # dispersion direction only: 2.5 px at R=43,000 x 43,000/21,500 (IRTF 1" slit value)
 spectrograph_efficiency = 0.1
 slit_throughput = 0.75   # PLACEHOLDER
-qe = 0.8
-dark_current = 0.5
-read_noise = 22.0
-full_well = 80000.0
+qe = 0.8               # placeholder flat QE
+dark_current = 5.0     # e-/s/pix: IRTF "dark + background" below 2.5 um (was 0.5, the 1993 paper's
+                       # dark alone for the NICMOS-3 array); the fiber-fed LFAST feed may do better
+read_noise = 30.0      # e-/pix per read: IRTF quoted value for the 256x256 InSb (was 22, the 1993
+                       # paper's multiple-sampling target); assumes Fowler sampling, reads >= 8 s
+full_well = 80000.0    # placeholder
 min_exptime = 8.0
 free_spectral_range_frac = 2.5e-3
