@@ -314,10 +314,12 @@ def test_review_fixes_bandpass_clip_selector_and_validation():
         b.snr_grid(src, [15], [100], wavelength=1500.0)
     with pytest.raises(ValueError):
         b.limiting_magnitude(src, 100, 10, wavelength=1500.0)
-    # at() interpolates across NaN bins, not into them
+    # at() interpolates between two valid bins, never across or into an invalid one (#37)
     r = LFASTETC("cshell_r18000", wavelength_min_nm=1368, wavelength_max_nm=1373).exptime(Source.blackbody(5800, 10, "J"), 10)
-    i = np.flatnonzero(np.isfinite(r.exptime) & np.isfinite(np.roll(r.exptime, 1)))[1]
+    i = np.flatnonzero(r.valid & np.roll(r.valid, 1))[1]
     assert np.isfinite(r.at(r.wavelength[i] - 1e-6)["exptime"])
+    j = np.flatnonzero(r.valid & ~np.roll(r.valid, 1))[0]       # first valid bin after the telluric gap
+    assert np.isnan(r.at(r.wavelength[j] - 1e-6)["exptime"])
     # validation
     for bad in (dict(mag=float("nan")), dict(mag=float("inf"))):
         with pytest.raises(ValueError):
@@ -402,3 +404,45 @@ def test_science_notebook_windows_match_their_text():
     assert "wavelength_max_nm=1590" not in "\n".join(s for _, s in NB["10_cshell_nir_science"])
     # a 40 A setting at 1550 nm on R=43k is ~111 resels, not ~1100
     assert 100 < len(LFASTETC("cshell_r43000", wavelength_min_nm=1550, wavelength_max_nm=1554).wavelength) < 120
+
+
+def test_kopt_below_epsilon_is_zero_throughput():
+    """#12: a K_opt sample of 4.6e-9 at 687 nm is a telluric core, not a finite throughput."""
+    from lfast_etc.telescope import KOPT_EPS
+    tel = Telescope()
+    assert KOPT_EPS == 1e-6
+    assert tel.kopt(687.0) == 0.0 and tel.kopt(687.3) == 0.0        # the sample and the interp ramp next to it
+    assert tel.kopt(761.0) == 0.0 and tel.kopt(700.0) > 1e-3
+    etc = LFASTETC("bench_316_7p0_o1")
+    r = etc.exptime(Source.blackbody(5800, 15), 100)
+    m = (r.wavelength > 680) & (r.wavelength < 695)
+    assert np.isnan(r.exptime[m]).any()                               # the 687 nm core is invalid ...
+    assert np.nanmax(r.exptime[m]) < 2 * np.nanmedian(r.exptime[m])    # ... not a 5x finite spike (B-band wing stays finite)
+    assert (r.valid == (etc.telescope.kopt(r.wavelength) > 0)).all()
+
+
+def test_exptime_result_is_nan_in_invalid_bins_and_summary_follows():
+    """#37: exptime() must not broadcast the requested SNR into opaque bins."""
+    etc = LFASTETC("cshell_r18000", wavelength_min_nm=1368, wavelength_max_nm=1373)
+    r = etc.exptime(Source.blackbody(5800, 10, "J"), 10)
+    assert (~r.valid).any() and r.valid.any()
+    assert np.isnan(r.snr[~r.valid]).all() and np.isnan(r.exptime[~r.valid]).all()
+    assert np.allclose(r.snr[r.valid], 10)
+    opaque = LFASTETC("cshell_r18000", wavelength_min_nm=1369.5, wavelength_max_nm=1370.5).exptime(Source.blackbody(5800, 10, "J"), 10)
+    assert not opaque.valid.any()
+    assert all(np.isnan(v) for v in opaque.summary()["snr"].values())
+
+
+def test_at_exact_centres_and_one_bin_grid():
+    """#37: at() returns the sample at an exact centre (valid -> value, invalid -> NaN), also on a one-bin grid."""
+    etc = LFASTETC("cshell_r18000", wavelength_min_nm=1368, wavelength_max_nm=1373)
+    r = etc.exptime(Source.blackbody(5800, 10, "J"), 10)
+    i, j = np.flatnonzero(~r.valid)[0], np.flatnonzero(r.valid)[0]
+    bad = r.at(r.wavelength[i])
+    assert np.isnan(bad["exptime"]) and np.isnan(bad["snr"]) and bad["n_star"] == 0.0
+    good = r.at(r.wavelength[j])
+    assert good["exptime"] == r.exptime[j] and good["snr"] == 10.0
+    one = LFASTETC("bench_r1800", wavelength_min_nm=550, wavelength_max_nm=550.2).snr(Source.blackbody(5800, 15), 100)
+    assert len(one.wavelength) == 1
+    assert one.at(one.wavelength[0])["snr"] == one.snr[0] and np.isfinite(one.snr[0])
+    assert np.isnan(one.at(one.wavelength[0] + 0.01)["snr"])      # off-centre on a one-bin grid: nothing to interpolate

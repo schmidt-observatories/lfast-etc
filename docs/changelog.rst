@@ -8,6 +8,12 @@ Code review, notebooks and documentation pass (see the GitHub issues #2 to #30 f
 
 Fixed
 
+* ``K_opt`` samples below ``KOPT_EPS = 1e-6`` are telluric cores and count as zero, together
+  with the interpolation intervals next to them, so the 687 nm O2 B band on the
+  ``bench_316_7p0_o1`` preset is NaN instead of a 5x finite exposure-time spike (#12).
+* ``ETCResult.valid`` marks the usable bins. ``exptime()`` no longer broadcasts the requested
+  SNR into invalid bins; ``at()`` returns the sample at an exact bin centre (also on a one-bin
+  grid) and never interpolates across or into an invalid bin (#37).
 * An explicit ``wavelength_min_nm``/``wavelength_max_nm`` is now clipped to the preset bandpass
   as well as to the data range, with a clear error when nothing is left (#2).
 * A float ``wavelength`` selector outside the grid raises instead of snapping to the edge bin (#3).

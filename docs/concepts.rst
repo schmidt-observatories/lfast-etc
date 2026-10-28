@@ -42,9 +42,12 @@ total time is split into this many reads*, not "this many exposures of this leng
 noise is paid ``n_exp`` times and the per-read time is ``exptime / n_exp``. Reads shorter than
 the instrument's ``min_exptime`` are flagged in ``ETCResult.below_min_exptime``.
 
-Where the source throughput is zero (telluric cores in the bundled :math:`K_{opt}` curve, at
-761 nm and 1355 to 1420 nm) the result is NaN rather than an enormous number. Medians and
-percentiles ignore those bins; the web API renders them as ``null``.
+Where the source throughput is zero (telluric cores in the bundled :math:`K_{opt}` curve:
+any sample below ``KOPT_EPS = 1e-6``, e.g. 687, 761, 1129 nm and the 1336 to 1424 nm water
+band, plus the interpolation intervals next to those samples) the bin is invalid:
+``ETCResult.valid`` is False and ``snr``/``exptime`` are NaN rather than an enormous number.
+Medians and percentiles ignore those bins; ``at()`` never interpolates across them; the web
+API renders them as ``null``.
 
 Method names and result attributes
 ----------------------------------

@@ -40,7 +40,9 @@ class ETCResult:
 
     Arrays are all on ``wavelength`` [nm]. ``exptime`` is the *total*
     exposure time [s] (sum of ``n_exp`` reads). Bins with zero throughput
-    (telluric cores in ``K_opt``) are NaN in ``snr``/``exptime``.
+    (telluric cores in ``K_opt``, see ``Telescope.kopt``) are invalid:
+    ``valid`` is False and ``snr``/``exptime`` are NaN there, whichever was
+    solved for.
     """
     wavelength: np.ndarray
     delta_lambda: np.ndarray
@@ -61,15 +63,29 @@ class ETCResult:
     title: str = ""
     solved_for: str = ""
 
+    @property
+    def valid(self):
+        """Bins with non-zero source throughput (False in telluric cores)."""
+        return self.n_star > 0
+
     def at(self, wavelength_nm):
-        """Interpolated ``snr``, ``exptime`` and rates at one wavelength [nm] (NaN outside the grid)."""
-        w = self.wavelength
-        out = {}
-        for k in ("snr", "exptime", "n_star", "n_sky_pix", "peak_e_per_pixel"):
-            y = getattr(self, k)
-            m = np.isfinite(y)        # interpolate across NaN (zero-throughput) bins, not into them
-            out[k] = float(np.interp(wavelength_nm, w[m], y[m], left=np.nan, right=np.nan)) if m.sum() > 1 else np.nan
-        return out
+        """``snr``, ``exptime`` and rates at one wavelength [nm].
+
+        An exact bin centre returns that bin's values (NaN ``snr``/``exptime``
+        if the bin is invalid). Anywhere else is a linear interpolation between
+        the two bracketing bins, NaN if either is invalid or the point is
+        outside the grid (#37).
+        """
+        w, x = self.wavelength, float(wavelength_nm)
+        keys = ("snr", "exptime", "n_star", "n_sky_pix", "peak_e_per_pixel")
+        i = int(np.argmin(np.abs(w - x)))
+        if np.isclose(w[i], x, rtol=1e-12, atol=0.0):
+            return {k: float(getattr(self, k)[i]) for k in keys}
+        j = int(np.searchsorted(w, x))
+        if j == 0 or j == len(w) or not (self.valid[j - 1] and self.valid[j]):
+            return {k: np.nan for k in keys}
+        f = (x - w[j - 1]) / (w[j] - w[j - 1])
+        return {k: float((1 - f) * getattr(self, k)[j - 1] + f * getattr(self, k)[j]) for k in keys}
 
     def summary(self, percentiles=(10, 50, 90)):
         """Percentiles of ``snr`` and ``exptime`` over the band, plus a saturation flag
@@ -281,6 +297,8 @@ class LFASTETC:
         )
 
     # ---- SNR <-> exposure time ---------------------------------------------
+    # ``n_star > 0`` is the one validity rule: ``Telescope.kopt`` returns an
+    # exact 0 below ``KOPT_EPS``, so the formulas never see a near-zero rate.
     @staticmethod
     def _snr_formula(n_star, n_sky_pix, dark, rn, n_pix, t, n_exp):
         """Howell SNR; NaN where the source throughput is zero."""
@@ -308,8 +326,9 @@ class LFASTETC:
         return int(n_exp)
 
     def _result(self, source, r, t, snr, n_exp, solved_for):
-        t = np.broadcast_to(np.asarray(t, float), self.wavelength.shape).copy()
-        snr = np.broadcast_to(np.asarray(snr, float), self.wavelength.shape).copy()
+        valid = r["n_star"] > 0
+        t = np.where(valid, np.broadcast_to(np.asarray(t, float), self.wavelength.shape), np.nan)
+        snr = np.where(valid, np.broadcast_to(np.asarray(snr, float), self.wavelength.shape), np.nan)
         # ponytail: peak pixel = uniform share of the resel on the most heavily
         # loaded detector; a real LSF peaks higher. The rates in ``r`` are
         # whole-array, so scale to the brightest input's share of the telescopes
@@ -445,6 +464,8 @@ class LFASTETC:
         if margin > 1:
             raise ValueError(f"margin is a fraction of the full well and must be <= 1, got {margin}")
         peak = self.snr(source, exptime, n_exp=1).peak_e_per_pixel
+        if not np.isfinite(peak).any():                   # every bin invalid: nothing to saturate
+            return 1
         return int(max(1, np.ceil(np.nanmax(peak) / (margin * self.instrument.full_well))))
 
     # ---- plots --------------------------------------------------------------

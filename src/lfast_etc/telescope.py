@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 import warnings
 import numpy as np
 
+KOPT_EPS = 1e-6   # K_opt below this is a telluric core: zero throughput, bin invalid (#12)
+
 from .constants import THROUGHPUT_DIR, positive
 
 # fiber core -> (on-sky diameter [arcsec], throughput-file suffix, default combine mode)
@@ -142,8 +144,16 @@ class Telescope:
 
     # ---- throughput ---------------------------------------------------------
     def kopt(self, wavelength_nm):
-        """Point-source telescope throughput (includes fiber injection)."""
-        return np.interp(wavelength_nm, *self._kopt)
+        """Point-source telescope throughput (includes fiber injection).
+
+        Samples below ``KOPT_EPS`` are telluric cores and count as exactly
+        zero, and so does any wavelength whose interpolation interval touches
+        such a sample (#12): the rule does not depend on where the 1 nm
+        sampling happens to land relative to the bin centres.
+        """
+        w, k = self._kopt
+        clear = np.interp(wavelength_nm, w, (k >= KOPT_EPS).astype(float)) >= 1.0
+        return np.where(clear, np.interp(wavelength_nm, w, k), 0.0)
 
     def eta_fib(self, wavelength_nm):
         """Point-source fiber injection efficiency."""
