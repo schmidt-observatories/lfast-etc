@@ -21,6 +21,17 @@ Fixed
   bad band raises ``ValueError`` (#9).
 * Science notebooks 06-10 no longer require the gitignored ``memo/figures`` directory (#10).
 * ``Telescope`` warns for the 50 um fiber through the combiner (#11).
+* The peak-pixel estimate follows the most heavily loaded combiner input (a full 20-group for
+  ``N = 21``) instead of averaging over inputs (#36); ``Telescope.telescopes_on_brightest_input``.
+* ``reads_needed`` rejects ``margin > 1`` (#39).
+* ``Instrument`` accepts the default ``full_well = inf`` (or ``None``) as "unknown";
+  ``summary()["saturated_fraction"]`` is then ``None`` (#46).
+* Overflowed ``snr``/``exptime`` raise ``ValueError`` instead of returning ``inf``; the web API
+  bounds ``snr`` (1e6) and ``exptime`` (1e9 s) and serialises every non-finite value as ``null``
+  (#47).
+* Notebook 07 integrates the stated 50 A AGN window (507.5 to 512.5 nm) and names the estimator
+  (#35); notebook 10 integrates one 40 A CSHELL setting (1550 to 1554 nm) and labels the RV
+  number as a photon-only, assumed-Q bound (#34).
 
 Added
 

@@ -80,3 +80,25 @@ def test_web_independent_mode_and_n_exp(client):
                                    source_type="blackbody", teff="4500", mag="9", band="H", system="Vega",
                                    mode="snr", exptime="300", n_exp="3", wmin="1550", wmax="1560"))
     assert r.status_code == 200 and b"Summary" in r.data and b"Input error" not in r.data
+
+
+def _strict_json(data):
+    """Decode rejecting the non-standard Infinity/NaN tokens Python's decoder normally accepts."""
+    import json
+
+    def reject(token):
+        raise ValueError(f"non-standard JSON constant {token}")
+    return json.loads(data, parse_constant=reject)
+
+
+def test_api_never_emits_infinity_and_bounds_snr_and_exptime(client):
+    """#47: /api/calc?snr=1e100 used to return 200 with bare Infinity tokens."""
+    for q in ("snr=1e100", "snr=1e7", "mode=snr&exptime=1e300", "mode=snr&exptime=1e10"):
+        r = client.get(f"/api/calc?instrument=bench_r1800&mag=14&{q}")
+        assert r.status_code == 400, q
+        assert b"Infinity" not in r.data and b"NaN" not in r.data
+    r = client.get("/api/calc?instrument=cshell_r18000&mag=10&teff=5800&band=J&mode=exptime&snr=1e6")
+    assert r.status_code == 200
+    d = _strict_json(r.data)
+    assert all(v is None or isinstance(v, float) for v in d["exptime"])
+    assert all(v is None or isinstance(v, float) for v in d["summary"]["exptime"].values())

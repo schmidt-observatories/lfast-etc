@@ -251,13 +251,17 @@ for Seyferts at V = 14 to 17. The fiber-aperture and spectrophotometric stabilit
 included, and it is the real question for this programme.
 """),
 code("""agn = Source.powerlaw(-0.5, 0, "V", system="AB")
+WIN_A = 50; CENTER_NM = 510.0                               # the "50 A window at 5100 A"
+lo, hi = CENTER_NM - WIN_A/20, CENTER_NM + WIN_A/20          # 10 A per nm, half-width each side
 for n in (20, 200, 1720):
     e = LFASTETC("bench_r1800", telescope=tel(n))
     row = []
     for m in (14, 15, 16, 17):
         r = e.snr(agn.with_mag(m), 600)
-        win = (r.wavelength >= 505) & (r.wavelength <= 515)
-        snr50 = np.sqrt(np.nansum(r.snr[win]**2))       # co-add the resels in the window
+        win = (r.wavelength >= lo) & (r.wavelength <= hi)
+        # information sum over the resels: the SNR of one common amplitude fitted against the
+        # known continuum shape, (sum_i SNR_i^2)^(1/2); not the SNR of an unweighted flux sum
+        snr50 = np.sqrt(np.nansum(r.snr[win]**2))
         row.append(f"V={m}: {100/snr50:.2f}%")
     print(f"N={n:5d} (10 min): " + "  ".join(row))"""),
 ]
@@ -435,8 +439,8 @@ a single strong line per setting. Three cases are quantified here versus the arr
 Assumptions: as in notebook 05 for He 10830 (0.7 A FWHM line, 300 s exposures, 2 h transit, equal
 out-of-transit time, resel-averaged line core, placeholder slit throughput 0.5 at R = 43k).
 Pa-beta: R = 18k, SNR 30 per resel for a 10% line-flux measurement of a line with EW ~ 5 A. RVs:
-SNR 30 per resel at R = 43k in a 40 A window gives about 1 km/s for a late-type star (Bouchy et
-al. 2001 scaling with a conservative quality factor, set below).
+a photon-only Bouchy et al. (2001) bound over one 40 A setting at R = 43k with an assumed
+quality factor, set below.
 """),
 code(PREAMBLE), code(SCALES),
 code("""from scipy.special import erf
@@ -483,21 +487,27 @@ md("""
 
 Photon-limited RV precision scales as $\\sigma_{RV} = c / (Q \\sqrt{N_{e}})$ (Bouchy et al. 2001)
 with $N_e$ the total electrons in the spectrum and $Q$ the spectral quality factor. For a K or M
-dwarf at R = 43k in a 40 A H-band window we take $Q$ = 300. Bouchy et al. give Q ~ 10$^4$ at
-R = 100k across the full optical range, and a 40 A window with few lines is far poorer, so $Q$
-is the knob to revisit. The result is a scaling only: km/s orbits for binaries are easy, m/s
-planet work is not.
+dwarf at R = 43k in a 40 A window in the H band (one CSHELL setting) we take $Q$ = 300. Bouchy
+et al. give Q ~ 10$^4$ at R = 100k across the full optical range, and a 40 A window with few
+lines is far poorer, so $Q$ is the knob to revisit.
+
+This is a photon-only bound with an assumed $Q$: $N_e$ counts source electrons only (no sky,
+dark or read noise enters), and a blackbody carries no line information, so the number is only
+as good as $Q$. The result is a scaling: km/s orbits for binaries are easy, m/s planet work is not.
 """),
 code("""Q = 300.0
+RV_WINDOW_A = 40; RV_START_NM = 1550.0                      # one CSHELL setting, 40 A wide
 def rv(n):
-    return LFASTETC("cshell_r43000", telescope=tel(n), wavelength_min_nm=1550, wavelength_max_nm=1590)
+    return LFASTETC("cshell_r43000", telescope=tel(n), wavelength_min_nm=RV_START_NM,
+                    wavelength_max_nm=RV_START_NM + RV_WINDOW_A/10)
 for n in (20, 200, 1720):
     e = rv(n); row = []
     for h in (6, 9, 12):
-        r = e.snr(Source.blackbody(4000, h, "H"), 900, n_exp=e.reads_needed(Source.blackbody(4000, h, "H"), 900))
-        ne = np.nansum(r.n_star*r.exptime)        # electrons across the window
+        src = Source.blackbody(4000, h, "H")
+        r = e.snr(src, 900, n_exp=e.reads_needed(src, 900))
+        ne = np.nansum(r.n_star*r.exptime)        # source electrons across the 40 A window
         row.append(f"H={h}: {2.998e5/(Q*np.sqrt(ne)):7.2f} km/s")
-    print(f"N={n:5d} (15 min): " + "  ".join(row))"""),
+    print(f"N={n:5d} (15 min, photon-only, Q assumed): " + "  ".join(row))"""),
 md("## Bright end: reads needed for a J = 3 star in 300 s (placeholder 80 ke- full well)"),
 code("""for n in (20, 200, 1720):
     print(f"N={n:5d}: reads = {he(n, 'cshell_r18000').reads_needed(Source.blackbody(4800, 3, 'J'), 300)}")"""),

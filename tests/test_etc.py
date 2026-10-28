@@ -335,3 +335,70 @@ def test_review_fixes_bandpass_clip_selector_and_validation():
     with pytest.raises(ValueError):
         Source.from_arrays([400, 500, 600], [1e-15, 1e-15, 1e-15], flux_unit="W/m2/nm", band="Q")
     assert Instrument.from_preset("bench_r1800", name="mine").name == "mine"
+
+
+def test_peak_pixel_follows_the_brightest_packed_input():
+    """#36: N=21 is one full 20-group plus one, so the brightest detector still sees 20 telescopes."""
+    src = Source.blackbody(5800, 8, "V")
+    peak = lambda **kw: np.nanmax(LFASTETC("bench_r1800", telescope=Telescope(**kw)).snr(src, 34.24).peak_e_per_pixel)
+    full = peak(n_telescopes=20)
+    for n in (21, 39, 40, 41):
+        assert peak(n_telescopes=n) == pytest.approx(full, rel=1e-12)
+    assert peak(n_telescopes=19) < full
+    assert peak(n_telescopes=21, combine="independent") == pytest.approx(peak(n_telescopes=1, combine="independent"), rel=1e-12)
+    ideal = peak(n_telescopes=40, telescopes_per_input=None)
+    assert ideal == pytest.approx(2 * full - 3e-4 * 34.24, rel=1e-9)   # all 40 on one detector (dark once)
+    etc = LFASTETC("bench_r1800", telescope=Telescope(21))
+    assert etc.snr(src, 34.24).saturated.any() and etc.reads_needed(src, 34.24) == 2
+    # the co-added SNR is untouched: N=21 is still noisier than two full arrays
+    assert np.nanmedian(etc.snr(src, 100).snr) < np.nanmedian(LFASTETC("bench_r1800", telescope=Telescope(40)).snr(src, 100).snr)
+
+
+def test_reads_needed_margin_is_a_fraction_of_full_well():
+    """#39: margin > 1 would let the brightest pixel exceed the full well."""
+    etc = LFASTETC("cshell_r18000", wavelength_min_nm=1081, wavelength_max_nm=1086)
+    src = Source.blackbody(4800, 3, "J")
+    assert etc.reads_needed(src, 300, margin=1.0) <= etc.reads_needed(src, 300, margin=0.8)
+    for bad in (5, 1.01, 0, -1, float("nan")):
+        with pytest.raises(ValueError):
+            etc.reads_needed(src, 300, margin=bad)
+
+
+def test_instrument_without_full_well_builds_and_reports_saturation_unknown():
+    """#46: the default full_well=inf must pass its own validator; None means the same."""
+    ins = Instrument(name="custom", wavelength_min_nm=400, wavelength_max_nm=800,
+                     resolving_power=1800, pixels_per_resel=2.2, spectrograph_efficiency=0.3)
+    assert ins.full_well == float("inf")
+    assert Instrument.from_preset("bench_r1800", full_well=None).full_well == float("inf")
+    res = LFASTETC(ins).snr(Source.blackbody(5800, 0, "V"), 3600)
+    assert not res.saturated.any() and res.summary()["saturated_fraction"] is None
+    assert LFASTETC(ins).reads_needed(Source.blackbody(5800, 0, "V"), 3600) == 1
+    assert LFASTETC("bench_r1800").snr(Source.blackbody(5800, 15), 100).summary()["saturated_fraction"] == 0.0
+    with pytest.raises(ValueError):
+        Instrument.from_preset("bench_r1800", full_well=0)
+
+
+def test_overflow_is_flagged_not_returned():
+    """#47: a finite but absurd SNR overflows the exposure-time quadratic; raise instead of returning inf."""
+    etc = LFASTETC("bench_r1800")
+    src = Source.blackbody(5800, 15)
+    with pytest.raises(ValueError, match="overflow"):
+        etc.exptime(src, snr=1e100)
+    assert np.isfinite(etc.exptime(src, snr=1e6).exptime[np.isfinite(etc.exptime(src, snr=1e6).snr)]).all()
+
+
+def test_science_notebook_windows_match_their_text():
+    """#34, #35: the integration windows are derived from the widths the prose quotes."""
+    import re, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from build_science_notebooks import NB
+    for name, const, pattern in (("07_time_domain_lsst_era", "WIN_A", r"(\d+) A window"),
+                                 ("10_cshell_nir_science", "RV_WINDOW_A", r"(\d+) A window")):
+        text = "\n".join(s for k, s in NB[name] if k == "md")
+        code = "\n".join(s for k, s in NB[name] if k == "code")
+        stated = {int(m) for m in re.findall(pattern, text)}
+        assert stated == {int(re.search(rf"{const} = (\d+)", code).group(1))}, (name, stated)
+    assert "wavelength_max_nm=1590" not in "\n".join(s for _, s in NB["10_cshell_nir_science"])
+    # a 40 A setting at 1550 nm on R=43k is ~111 resels, not ~1100
+    assert 100 < len(LFASTETC("cshell_r43000", wavelength_min_nm=1550, wavelength_max_nm=1554).wavelength) < 120

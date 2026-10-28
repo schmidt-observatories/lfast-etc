@@ -94,9 +94,12 @@ Telescope combination
 Saturation
 ----------
 
-The brightest pixel is approximated as a uniform share of the resel,
-:math:`(N_*/n_{pix} + N_{sky} + D)\,t/n_{exp}`, and flagged against ``full_well``. A real line
-spread function peaks higher, so treat the flag as optimistic.
+The brightest pixel is approximated as a uniform share of the resel on the most heavily loaded
+detector, :math:`(f (N_*/n_{pix} + N_{sky}) + D)\,t/n_{exp}` with :math:`f` the fraction of the
+telescopes on that input (a full group of 20 for ``N = 21``, one telescope in independent mode),
+and flagged against ``full_well``. A real line spread function peaks higher, so treat the flag as
+optimistic. An ``Instrument`` without a ``full_well`` (``inf``) is never flagged and reports
+``saturated_fraction = None``.
 
 Known limitations
 -----------------
