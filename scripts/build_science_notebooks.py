@@ -39,7 +39,7 @@ scaling model used by notebooks 07 to 10 and produces the headline sensitivity c
 
 How arrays combine in the ETC: each 20-to-1 fiber combiner feeds one spectrograph input. Within an
 array, star and sky electrons both scale with the number of telescopes while detector noise is
-paid once, so the SNR gain is better than $\\sqrt{N}$ when read noise or dark current matter.
+incurred once, so the SNR gain is better than $\\sqrt{N}$ when read noise or dark current matter.
 Beyond 20, the ETC assumes one input per array, co-added incoherently, so the SNR grows as
 $\\sqrt{n_{arrays}}$ on top of the single-array value (`Telescope(..., telescopes_per_input=20)`).
 An idealised single combiner (`telescopes_per_input=None`) is shown dotted where it matters.
@@ -52,14 +52,18 @@ telescopes point at one target at a time.
 """),
 code(PREAMBLE), code(SCALES),
 md("## Equivalent apertures"),
-code("""print(f"{'N tel':>6} {'arrays':>7} {'area m2':>8} {'D_eq m':>7} {'inputs':>7}")
-for n in NS:
-    t = tel(int(n))
-    print(f"{n:6d} {-(-n//20):7d} {t.total_area_m2:8.1f} {t.equivalent_diameter_m:7.1f} {t.n_inputs:7d}")"""),
+code("""apertures = pd.DataFrame(
+    {int(n): {"Arrays": -(-int(n)//20), "Area (m²)": tel(int(n)).total_area_m2,
+              "D_eq (m)": tel(int(n)).equivalent_diameter_m, "Spectrographs": tel(int(n)).n_inputs}
+     for n in NS}).T.rename_axis("N telescopes")
+apertures.astype({"Arrays": int, "Spectrographs": int}).style.format(
+    {"Area (m²)": "{:.1f}", "D_eq (m)": "{:.1f}"}).apply(
+    lambda r: ["font-weight: bold" if r.name in SCALES else "" for _ in r], axis=1)"""),
+md("Bold rows are the three scales compared throughout: the nominal 20x array, 10 m equivalent and 30 m equivalent. In this model every array has its own spectrograph, so the number of spectrographs equals the number of arrays."),
 md("""
 ## Limiting magnitude versus array size, both instruments
 
-Three cases: the Bench in V over 500 to 650 nm, CSHELL at R = 18k in H for one setting at 1.55 um,
+Three cases: the Bench in V over 500 to 650 nm, CSHELL at R = 18k in H for one setting at 1.555 um,
 and CSHELL at R = 43k in J at the He 10830 line. Solid lines use one combiner per 20 telescopes;
 dotted lines are the idealised single combiner. The gap between them is the price of paying the
 detector noise once per array instead of once in total, and it is largest for CSHELL, whose
@@ -67,9 +71,10 @@ detector is noisier.
 """),
 code("""gstar = Source.blackbody(5800, 0, "V")
 kstar = Source.blackbody(4500, 0, "H")
+cs_lo, cs_hi = Instrument.from_preset("cshell_r18000").setting_window(1555.0)   # one CSHELL echelle setting
 cases = {
     "Bench R~1800, V, 500-650 nm": ("bench_r1800", gstar, dict(), (500, 650)),
-    "CSHELL R=18k, H, 1.55-1.56 um": ("cshell_r18000", kstar, dict(wavelength_min_nm=1550, wavelength_max_nm=1560), None),
+    "CSHELL R=18k, H, one setting at 1.555 um": ("cshell_r18000", kstar, dict(wavelength_min_nm=cs_lo, wavelength_max_nm=cs_hi), None),
     "CSHELL R=43k, J, He 10830": ("cshell_r43000", Source.blackbody(4800, 0, "J"), dict(wavelength_min_nm=1081, wavelength_max_nm=1086), 1083.3),
 }
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.9))
@@ -85,9 +90,20 @@ for ax, (label, (preset, src, kw, win)) in zip(axes, cases.items()):
     ax.set_title(label + "\\n(dotted: ideal single combiner)", fontsize=9); ax.legend(fontsize=8)
     mark_scales(ax)
 plt.tight_layout(); save(fig, "limiting_mag_vs_N.pdf")"""),
-code("""print("Limiting magnitude, SNR=10 per resel:")
-for (label, exp), d in summary.items():
-    print(f"{label:32s} {exp:5d} s: " + "  ".join(f"N={n}: {d[n]:5.2f}" for n in (20, 200, 1720)))"""),
+code("""lim_table = pd.DataFrame({(label, exp): {f"N={n}": d[n] for n in SCALES} for (label, exp), d in summary.items()}).T
+lim_table.index.names = ["case (SNR=10 per resel)", "exposure (s)"]
+lim_table["gain 20->200"] = lim_table["N=200"] - lim_table["N=20"]
+lim_table["gain 20->1720"] = lim_table["N=1720"] - lim_table["N=20"]
+lim_table.style.format("{:.2f}")"""),
+md("""* **Bench.** The gain is largest for short exposures: a V ~ 16.5 star in 60 s gives ~130 e$^-$ per
+  resel against ~14 e$^-$ of sky, so the star dominates and the gain is 1.75 mag (20 -> 200). In
+  1 h at V ~ 19.9 the sky (~820 e$^-$) outweighs the star (~350 e$^-$) and the gain drops to 1.4 mag.
+* **CSHELL.** Detector noise dominates at every exposure (22 e$^-$ read noise and 0.5 e$^-$/s dark
+  current against a few hundred e$^-$ from the star at the faint limit), so the gain stays at
+  ~1.3 mag (20 -> 200) and ~2.5 mag (20 -> 1720), close to the background-limited value.
+* **Single combiner (dotted).** Feeding all telescopes into one spectrograph would hardly help the
+  Bench (<0.1 mag) but would help CSHELL a lot: ~1.1 mag deeper at 200 telescopes and ~1.9 mag at
+  1720 in 15 min, because its detector noise would then be paid only once."""),
 md("""
 ## How the gain is split: source-, sky- and read-noise-limited regimes
 
@@ -114,15 +130,19 @@ and 1720 telescopes. An idealised single combiner would instead saturate $N/20$ 
 The table gives the brightest star for which a 1 s (Bench) or 8 s (CSHELL, Fowler minimum) read
 stays below 80% of full well. The full wells are placeholders.
 """),
-code("""for preset, band, teff, kw, tmin in (("bench_r1800", "V", 5800, {}, 1.0), ("cshell_r18000", "H", 4500, dict(wavelength_min_nm=1550, wavelength_max_nm=1560), 8.0)):
-    row = []
-    for n in (20, 200, 1720):
+code("""bright = {}
+for preset, band, teff, kw, tmin in (("bench_r1800", "V", 5800, {}, 1.0), ("cshell_r18000", "H", 4500, dict(wavelength_min_nm=cs_lo, wavelength_max_nm=cs_hi), 8.0)):
+    row = {}
+    for n in SCALES:
         e = LFASTETC(preset, telescope=tel(n), **kw)
         mags = np.arange(-2, 14, 0.1)
         peak = np.array([np.nanmax(e.snr(Source.blackbody(teff, m, band), tmin).peak_e_per_pixel) for m in mags])
-        ok = mags[peak < 0.8*e.instrument.full_well]
-        row.append(f"N={n}: {band}>{ok.min():.1f}")
-    print(f"{preset:14s} ({tmin:.0f} s read): " + "   ".join(row))"""),
+        row[f"N={n}"] = f"{band} > {mags[peak < 0.8*e.instrument.full_well].min():.1f}"
+    bright[f"{preset} ({tmin:.0f} s read)"] = row
+pd.DataFrame(bright).T.rename_axis("brightest unsaturated star")"""),
+md("""The reads here are already the shortest each detector allows (1 s for the Bench, the 8 s Fowler
+minimum for CSHELL), so a brighter star has to be attenuated, e.g. by using fewer telescopes per
+array or a neutral-density filter."""),
 ]
 
 # --------------------------------------------------------------------------- 07
