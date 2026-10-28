@@ -22,6 +22,7 @@ git clone git@github.com:schmidt-observatories/lfast-etc.git
 cd lfast-etc
 pip install -e .            # core
 pip install -e ".[web]"     # + browser ETC
+pip install -e ".[notebooks]"  # + pandas, to run the example notebooks
 pip install -e ".[docs,web]"  # + Sphinx docs (the API page documents the web app)
 ```
 
