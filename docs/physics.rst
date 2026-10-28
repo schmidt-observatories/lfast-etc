@@ -70,8 +70,8 @@ For a total exposure :math:`t` split into :math:`n_{exp}` reads (Howell 2006),
 
 .. math:: \mathrm{SNR} = \frac{N_* t}{\sqrt{N_* t + n_{pix}\,(N_{sky} + D)\,t + n_{pix}\,n_{exp}\,RN^2}}.
 
-``exptime`` inverts this quadratic for :math:`t` at a target SNR. Bins where :math:`K_{opt}=0`
-(telluric cores) return NaN. The sky-subtraction noise term :math:`(1 + n_{pix}/n_{sky})` of
+``exptime`` inverts this quadratic for :math:`t` at a target SNR. Bins where :math:`K_{opt} < 10^{-6}`
+(telluric cores, ``lfast_etc.telescope.KOPT_EPS``) are invalid and return NaN. The sky-subtraction noise term :math:`(1 + n_{pix}/n_{sky})` of
 Howell is omitted, as in the reference notebook (a sky fiber is assumed well sampled).
 :math:`n_{pix}` in the bundled presets counts the dispersion direction only (2.2 / 2.5 pixels,
 from the reference notebook); Howell's :math:`n_{pix}` is the full extraction aperture, so
@@ -118,10 +118,11 @@ Known limitations
 * Blackbody SEDs only, unless you supply a spectrum.
 * No line-spread function: spectral lines are averaged over the resel (equivalent width
   preserved) but not convolved with the instrument profile.
-* :math:`K_{opt}` has exact zeros at 761 nm and in the 1355-1420 nm water band (those bins are
-  NaN) and near-zero samples elsewhere (4.6e-9 at the 687 nm O2 B band, where the Bench preset
-  stops; 950 nm). Because the curve is interpolated between 1 nm samples, a near-zero sample
-  gives a large but finite exposure time rather than NaN; see the open issue on a threshold.
+* :math:`K_{opt}` is sampled every 1 nm. Samples below ``KOPT_EPS = 1e-6`` (687, 761, 1129 nm,
+  the 1336-1424 nm water band, 1797 nm) are treated as exactly zero, and so is every wavelength
+  whose interpolation interval touches such a sample, so a telluric core is NaN regardless of
+  where the bin centres fall (#12). Small but finite samples (the 687 nm B-band wing, 950 nm)
+  still give large, finite exposure times.
 * The default sky is grey time (moon up); see :doc:`sky` for a dark-time proxy.
 * ``grid="uniform"`` samples the band every ``step_nm`` but every bin stays one resel wide, so
   it over- or undersamples; it exists for plotting on a regular grid, not for summing counts.

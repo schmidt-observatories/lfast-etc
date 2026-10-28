@@ -12,7 +12,8 @@ The two basic calls return a full :class:`~lfast_etc.ETCResult`:
     res.snr, res.exptime                            # one of them solved, the other the input
     res.n_star, res.n_sky_pix, res.dark_pix, res.read_noise, res.n_pix, res.n_exp
     res.peak_e_per_pixel, res.saturated, res.below_min_exptime
-    res.at(550.0)                                   # dict at one wavelength (interpolated across NaN bins)
+    res.at(550.0)                                   # dict at one wavelength (NaN if a bracketing bin is invalid)
+    res.valid                                       # bool per bin: False in telluric cores
     res.summary()                                   # percentiles, saturated fraction, number of bins
     res.to_table()                                  # astropy Table of every per-bin column
     res.simulate(seed=0)                            # one noisy realisation [e- per resel]
