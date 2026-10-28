@@ -98,11 +98,12 @@ lim_table.style.format("{:.2f}")"""),
 md("""* **Bench.** The gain is largest for short exposures: a V ~ 16.5 star in 60 s gives ~130 e$^-$ per
   resel against ~14 e$^-$ of sky, so the star dominates and the gain is 1.75 mag (20 -> 200). In
   1 h at V ~ 19.9 the sky (~820 e$^-$) outweighs the star (~350 e$^-$) and the gain drops to 1.4 mag.
-* **CSHELL.** Detector noise dominates at every exposure (22 e$^-$ read noise and 0.5 e$^-$/s dark
-  current against a few hundred e$^-$ from the star at the faint limit), so the gain stays at
+* **CSHELL.** Detector noise dominates at every exposure (22 e$^-$ read noise and 5 e$^-$/s dark
+  current: in 15 min at the faint limit the star gives ~1800 e$^-$ per resel against ~27,000 e$^-$
+  of dark), so the gain stays at
   ~1.3 mag (20 -> 200) and ~2.5 mag (20 -> 1720), close to the background-limited value.
 * **Single combiner (dotted).** Feeding all telescopes into one spectrograph would hardly help the
-  Bench (<0.1 mag) but would help CSHELL a lot: ~1.1 mag deeper at 200 telescopes and ~1.9 mag at
+  Bench (<0.1 mag) but would help CSHELL a lot: ~1.2 mag deeper at 200 telescopes and ~2.3 mag at
   1720 in 15 min, because its detector noise would then be paid only once."""),
 md("""
 ## How the gain is split: source-, sky- and read-noise-limited regimes
