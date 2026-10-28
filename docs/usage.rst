@@ -23,7 +23,7 @@ Three objects
 .. code-block:: python
 
     from lfast_etc import list_instruments, Instrument
-    list_instruments()      # ['bench_r1800', 'cshell_r18000', 'cshell_r21500', 'cshell_r43000']
+    list_instruments()      # 'bench_r1800' and 14 more bench_* WIYN modes, 'cshell_r18000', 'cshell_r21500', 'cshell_r43000'
     ins = Instrument.from_preset("cshell_r43000", slit_throughput=0.6)   # override any field
 
 Presets are TOML files in ``src/lfast_etc/data/config``; copy one to add a new configuration.

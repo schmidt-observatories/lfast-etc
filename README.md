@@ -4,7 +4,9 @@
 
 Exposure Time Calculator for the **LFAST** telescope array at Kitt Peak (nominally 20 x 0.726 m
 unit telescopes feeding one spectrograph through an 18 um fiber combiner), with two instruments:
-the **WIYN Bench** spectrograph (visible) and **CSHELL** (1.08-1.75 um, R up to 43,000).
+the **WIYN Bench** spectrograph (visible; the 15 grating/order modes of the
+[WIYN configuration table](https://www.wiyn.org/Instruments/wiynbench.html) that reach 400 nm, scaled from the
+reference 600 @ 10.1 deg mode by `scripts/build_bench_presets.py`) and **CSHELL** (1.08-1.75 um, R up to 43,000).
 
 The number of telescopes, the fiber, and every instrument parameter are plain inputs, so the
 calculator follows the array design as it evolves. The physics is the per-resolution-element model
@@ -28,7 +30,7 @@ pip install -e ".[docs]"    # + Sphinx docs
 ```python
 from lfast_etc import LFASTETC, Source, Telescope
 
-etc = LFASTETC("bench_r1800", n_telescopes=20)          # presets: bench_r1800, cshell_r18000/21500/43000
+etc = LFASTETC("bench_r1800", n_telescopes=20)          # presets: list_instruments()
 star = Source.blackbody(5800, mag=15, band="V")
 res = etc.exptime(star, snr=50)                         # per resolution element
 res.plot(); res.summary(); res.at(550.0)
