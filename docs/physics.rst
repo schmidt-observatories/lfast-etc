@@ -73,8 +73,8 @@ For a total exposure :math:`t` split into :math:`n_{exp}` reads (Howell 2006),
 ``exptime`` inverts this quadratic for :math:`t` at a target SNR. Bins where :math:`K_{opt} < 10^{-6}`
 (telluric cores, ``lfast_etc.telescope.KOPT_EPS``) are invalid and return NaN. The sky-subtraction noise term :math:`(1 + n_{pix}/n_{sky})` of
 Howell is omitted, as in the reference notebook (a sky fiber is assumed well sampled).
-:math:`n_{pix}` in the bundled presets counts the dispersion direction only (2.2 / 2.5 pixels,
-from the reference notebook); Howell's :math:`n_{pix}` is the full extraction aperture, so
+:math:`n_{pix}` in the bundled presets counts the dispersion direction only (2.2 pixels on the Bench from the reference notebook; 6 / 5 / 2.5 pixels for the CSHELL
+modes, 2.5 x 43,000 / R at the IRTF's 2.7 km/s per pixel); Howell's :math:`n_{pix}` is the full extraction aperture, so
 multiply by the fiber-image height in pixels once it is known. Because :math:`N_* \propto
 10^{-0.4 m}` the limiting magnitude at fixed :math:`(t, \mathrm{SNR})` is also a quadratic and is
 solved analytically; ``snr_grid`` evaluates the SNR on a (magnitude, exposure) grid the same way.
