@@ -90,3 +90,14 @@ Commit style
 
 Short imperative subject, body only when the reason is not obvious from the diff. Commits and
 pull requests are read by external collaborators.
+
+Releasing
+---------
+
+Bump ``version`` in ``pyproject.toml``, merge, then tag the merge commit and push the tag::
+
+    git tag v0.1.0 && git push origin v0.1.0
+
+The ``Publish`` workflow builds the sdist and wheel, checks that the tag matches the
+pyproject version, and uploads to PyPI through trusted publishing (no API token). The
+``pypi`` GitHub environment and the PyPI trusted publisher must exist for this to work.
