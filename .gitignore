@@ -10,6 +10,5 @@ docs/api/_autosummary/
 .ipynb_checkpoints/
 .DS_Store
 .pytest_cache/
-memo/*.aux
-memo/*.log
-memo/*.out
+memo/
+input/

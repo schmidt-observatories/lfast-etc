@@ -1,4 +1,4 @@
-"""Verbatim port of input/ETC_schmidt_2026oct12.ipynb (Bench configuration).
+"""Verbatim port of the reference LFAST ETC notebook (2026-10-12) (Bench configuration).
 
 Used only as the regression oracle for lfast_etc.
 """
