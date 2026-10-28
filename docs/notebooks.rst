@@ -45,7 +45,7 @@ Science cases, nominal array
       :link: notebooks/04_tdamm_followup
       :link-type: doc
 
-      Classification depth at R = 300, kilonova and afterglow time-to-classify.
+      Classification depth at R = 300, kilonova time-to-classify and afterglow time-to-redshift.
 
    .. grid-item-card:: 05 Exoplanet atmospheres with CSHELL
       :link: notebooks/05_exoplanet_atmospheres_cshell
