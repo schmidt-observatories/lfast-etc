@@ -105,7 +105,8 @@ Known limitations
 -----------------
 
 * QE is a flat placeholder per instrument (pass a callable ``qe(wavelength_nm)`` for a curve).
-* CSHELL slit losses and full wells are placeholders.
+* CSHELL slit losses are placeholders. Full wells are the WIYN STA1 value (87,500 e-) for the
+  Bench and 40,000 e- for CSHELL, inferred from the IRTF page's "half capacity" at 20,000 e-.
 * One sky table at airmass 1.3, sampled at R=20,000; no airmass or moon-phase model beyond a
   scale factor. For the CSHELL presets (R > 20,000) each resel takes the nearest sample, so
   airglow lines are pre-smoothed to R=20,000; regenerate a finer SkyCalc table for line-level work.

@@ -149,6 +149,7 @@ def test_cshell_presets_follow_the_irtf_detector_and_dispersion():
         assert ins.pixels_per_resel == npix
         assert ins.pixels_per_resel == pytest.approx(2.5 * 43000 / ins.resolving_power, rel=0.01)
         assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (22.0, 5.0, 8.0)   # 22 e-: Fowler-sampled
+        assert ins.full_well == 40000.0        # IRTF page: 1000 e-/s x 20 s 'fills the wells to half capacity'
         assert ins.free_spectral_range_frac == 2.5e-3 and ins.spectrograph_efficiency == 0.1
 
 
@@ -457,3 +458,10 @@ def test_at_exact_centres_and_one_bin_grid():
     assert len(one.wavelength) == 1
     assert one.at(one.wavelength[0])["snr"] == one.snr[0] and np.isfinite(one.snr[0])
     assert np.isnan(one.at(one.wavelength[0] + 0.01)["snr"])      # off-centre on a one-bin grid: nothing to interpolate
+
+
+def test_bench_presets_use_the_sta1_full_well():
+    """WIYN STA1 CCD page: full well 87,500 e-, 1% linearity to 63,000 e-, 3.7 e- read noise at medium gain."""
+    for name in (n for n in list_instruments() if n.startswith("bench_")):
+        ins = Instrument.from_preset(name)
+        assert ins.full_well == 87500.0 and ins.read_noise == 3.7

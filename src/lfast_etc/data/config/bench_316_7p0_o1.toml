@@ -14,5 +14,5 @@ slit_throughput = 1.0
 qe = 0.75              # placeholder flat QE, as bench_r1800
 dark_current = 3.0e-4  # e-/s/pix
 read_noise = 3.7       # e-/pix
-full_well = 100000.0   # placeholder
+full_well = 87500.0    # e-/pix: WIYN STA1 CCD (1% linearity to 63,000 e-; wiyn.org/Instruments/STA1vsT2KA.html)
 min_exptime = 1.0

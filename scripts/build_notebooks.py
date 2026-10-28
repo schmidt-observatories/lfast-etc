@@ -629,7 +629,7 @@ Assumptions, changeable in the first code cell:
   peak depth, so the measured depth is the mean of that profile over the `n_core` window (0.79 at
   R = 43k, 0.59 at R = 18k). Instrumental broadening is not added on top of that.
 * Individual exposures of 300 s, split into reads only if the brightest pixel would saturate
-  (`full_well` from the preset, placeholder 80 ke$^-$, with an 80% margin).
+  (`full_well` from the preset, 40 ke$^-$ inferred from the IRTF page, with an 80% margin).
 * Transit duration 2 h (24 in-transit exposures) and the same out of transit. The real durations
   are 1.8 h for HD 189733 b and 2.7 h for WASP-107 b.
 * Not included, each a 20 to 40% effect: the planet signal sits in the stellar He I line core,

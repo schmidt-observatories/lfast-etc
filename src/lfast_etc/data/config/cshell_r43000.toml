@@ -23,6 +23,6 @@ read_noise = 22.0      # e-/pix per read with Fowler sampling, reads >= 8 s (ref
                        # et al. 1993 multiple-sampling target of 20-25 e-). The IRTF page quotes ~30 e-
                        # for the 256x256 InSb without stating the sampling mode; use
                        # Instrument.from_preset(..., read_noise=30.0) for that case.
-full_well = 80000.0    # placeholder
+full_well = 40000.0    # e-/pix, inferred: IRTF page says 1000 e-/s x 20 s "fills the wells to half capacity"
 min_exptime = 8.0
 free_spectral_range_frac = 2.5e-3
