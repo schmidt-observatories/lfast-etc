@@ -331,8 +331,8 @@ ax.legend(fontsize=8); ax.set_title("Bench R~1800, median over 500-650 nm", font
 equivalent_diameter_axis(ax);"""),
 md("""
 The top axis converts the number of telescopes into the diameter of a single telescope with the
-same collecting area. The same comparison for CSHELL, where the 22 e$^-$ read noise and 0.5
-e$^-$/s dark current are large, shows the fiber combiner mattering more:
+same collecting area. The same comparison for CSHELL, where the 22 e$^-$ read noise and 5
+e$^-$/s dark-plus-background current are large, shows the fiber combiner mattering more:
 """),
 code("""fig, ax = plt.subplots(figsize=(7, 4.5))
 for fiber, combine in (("18um", "fiber"), ("18um", "independent"), ("50um", "independent")):
@@ -726,7 +726,7 @@ ax.set_title("CSHELL R=43k, 20 telescopes", fontsize=9);"""),
 md("""
 ## Why read noise and the array size matter here
 
-CSHELL's 22 e$^-$ read noise and 0.5 e$^-$/s dark current are large. With all fibers combined the
+CSHELL's 22 e$^-$ read noise and 5 e$^-$/s dark-plus-background current are large. With all fibers combined the
 detector terms are paid once per exposure; with independent spectra they are paid $N$ times.
 """),
 code("""ns = [5, 10, 20, 40, 80]
