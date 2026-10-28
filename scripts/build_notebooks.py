@@ -289,7 +289,7 @@ nb("02_sensitivity_maps_and_array_scaling", [
 md("""
 # Sensitivity maps and array scaling
 
-The stellar electron rate scales exactly as $10^{-0.4 m}$ with magnitude, so the ETC can evaluate
+The source electron rate scales exactly as $10^{-0.4 m}$ with magnitude, so the ETC can evaluate
 the SNR on a (magnitude, exposure time) grid without redoing the spectrum each time, and it can
 solve the limiting magnitude for a given SNR and exposure analytically, bin by bin. This notebook
 builds those maps for both instruments and then asks how they move with the number of
@@ -312,26 +312,31 @@ plot_snr_map(mags, exps, snr, band="V", title="Bench R~1800, 20 telescopes, medi
 md("""
 Where the contours are straight lines of slope $-2.5$ mag per decade of time the measurement is
 photon limited by the star. They bend at the faint end where sky and read noise enter and the gain
-per unit time slows down.
+per unit time slows down. Following the SNR = 10 contour, a V ~ 18.9 star reaches it in 15 min; the
+gain drops from 2.5 mag per decade at the bright end to 1.5 mag between 1000 and 10,000 s.
 
 ## CSHELL: SNR per resel versus H magnitude
 
-Same map for CSHELL in its native R = 18,000 mode, for one echelle setting at 1.55 to 1.56 um.
+Same map for CSHELL in its native R = 18,000 mode, for one echelle setting centred on 1.555 um (about 3.9 nm wide).
 The grid starts at 8 s because that is the shortest Fowler-sampled read for which the quoted
 read noise applies.
 """),
-code("""cshell = LFASTETC("cshell_r18000", n_telescopes=20, wavelength_min_nm=1550, wavelength_max_nm=1560)
+code("""cs = Instrument.from_preset("cshell_r18000")
+lo, hi = cs.setting_window(1555.0)               # one echelle setting (free spectral range ~2.5e-3 lambda)
+cshell = LFASTETC(cs, n_telescopes=20, wavelength_min_nm=lo, wavelength_max_nm=hi)
 kstar = Source.blackbody(4500, mag=0, band="H")
 mags_h = np.linspace(2, 16, 57)
 exps_h = exps[exps >= cshell.instrument.min_exptime]
-snr_h = cshell.snr_grid(kstar, mags_h, exps_h, wavelength=(1550, 1560))
+snr_h = cshell.snr_grid(kstar, mags_h, exps_h, wavelength=(lo, hi))
 plot_snr_map(mags_h, exps_h, snr_h, band="H", levels=(3, 10, 30, 100, 300),
-             title="CSHELL R=18k, 20 telescopes, 1.55-1.56 um");"""),
+             title=f"CSHELL R=18k, 20 telescopes, one setting {lo:.1f}-{hi:.1f} nm");"""),
 md("""
 ## Limiting magnitude versus wavelength
 
 `plot_limiting_magnitude` solves for the magnitude that reaches the target SNR in each bin. For the
 Bench the curve follows the throughput: deepest in the red, about a magnitude shallower at 420 nm.
+The spikes are night-sky emission lines ([O I] 557.7 nm, Na D near 589 nm, [O I] 630.0/636.4 nm)
+where the sky is locally much brighter.
 """),
 code("""fig, ax = plt.subplots(figsize=(9, 4))
 plot_limiting_magnitude(bench, gstar, exptimes=[60, 600, 3600], snr=10, ax=ax)
@@ -354,7 +359,8 @@ noise or dark current matter. Beyond 20 telescopes the ETC assumes one combiner 
 telescopes, co-added incoherently (`telescopes_per_input=20`); the dotted curve is an idealised
 single combiner for comparison. The 50 um fiber bypasses the combiner, so each telescope yields a
 spectrum and the SNR grows as $\\sqrt{N}$, but it couples about twice as much point-source light
-and admits a 7.7 times larger patch of sky.
+and admits a 7.7 times larger patch of sky. The nominal 20-telescope prototype and the
+100- and 200-telescope upgrade options are marked.
 """),
 code("""ns = np.array([1, 2, 4, 8, 12, 16, 20, 30, 40, 60, 80, 100, 150, 200])
 configs = (("18um", "fiber", 20), ("18um", "fiber", None), ("18um", "independent", 20), ("50um", "independent", 20))
@@ -366,7 +372,8 @@ for fiber, combine, tpi in configs:
             label=f"{fiber}, {combine}" + (" (ideal single combiner)" if tpi is None else ""))
 ax.set_xscale('log'); ax.invert_yaxis()
 ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting V (SNR=10/resel, 900 s)")
-ax.axvline(20, color='0.4', ls='--'); ax.text(21, ax.get_ylim()[1]+0.3, "nominal 20", fontsize=8)
+for n, txt, ha in ((20, "nominal 20", 'left'), (100, "100", 'left'), (200, "200", 'right')):
+    ax.axvline(n, color='0.4', ls='--'); ax.text(n*1.05 if ha == 'left' else n/1.05, ax.get_ylim()[1]+0.3, txt, fontsize=8, ha=ha)
 ax.legend(fontsize=8); ax.set_title("Bench R~1800, median over 500-650 nm", fontsize=9)
 equivalent_diameter_axis(ax);"""),
 md("""
@@ -377,12 +384,14 @@ e$^-$/s dark current are large, shows the fiber combiner mattering more:
 code("""fig, ax = plt.subplots(figsize=(7, 4.5))
 for fiber, combine in (("18um", "fiber"), ("18um", "independent"), ("50um", "independent")):
     lim = [LFASTETC("cshell_r18000", telescope=Telescope(n_telescopes=int(n), fiber=fiber, combine=combine),
-                    wavelength_min_nm=1550, wavelength_max_nm=1560).limiting_magnitude(kstar, 900, 10)
+                    wavelength_min_nm=lo, wavelength_max_nm=hi).limiting_magnitude(kstar, 900, 10)
            for n in ns]
     ax.plot(ns, lim, marker='o', ms=3, label=f"{fiber}, {combine}")
 ax.set_xscale('log'); ax.invert_yaxis()
 ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting H (SNR=10/resel, 900 s)")
-ax.axvline(20, color='0.4', ls='--'); ax.legend(fontsize=8); ax.set_title("CSHELL R=18k, 1.55-1.56 um", fontsize=9)
+for n in (20, 100, 200):
+    ax.axvline(n, color='0.4', ls='--')
+ax.legend(fontsize=8); ax.set_title(f"CSHELL R=18k, one setting {lo:.1f}-{hi:.1f} nm", fontsize=9)
 equivalent_diameter_axis(ax);"""),
 md("""
 For the common case of one configuration and several exposure times there is a one-call helper,
@@ -398,8 +407,8 @@ The bundled SkyCalc table has the moon up (45 degrees away, 45 degrees altitude)
 moonlight is about 57% of the 540 to 560 nm sky, giving V ~ 20.5 mag per square arcsecond, about
 one magnitude brighter than dark Kitt Peak (V ~ 21.7 to 22.0 at zenith, Neugent & Massey 2010).
 `Sky(scale=0.4)` is a crude dark-time estimate. It scales the airglow lines too, which is wrong
-in detail; generate a proper SkyCalc table for real planning. The Bench becomes sky limited at
-V > ~19.5, so this matters for the faint end and not at all for bright stars.
+in detail; generate a proper SkyCalc table for real planning. In a 15-minute exposure the sky
+matches a V ~ 19 star in 500-650 nm, so this matters for the faint end and not at all for bright stars.
 """),
 code("""for label, sky in (("grey (bundled)", Sky()), ("dark (x0.4)", Sky(scale=0.4))):
     e = LFASTETC("bench_r1800", n_telescopes=20, sky=sky)
