@@ -7,6 +7,7 @@ dist/
 docs/_build/
 docs/notebooks/
 docs/api/_autosummary/
+docs/_generated/
 .ipynb_checkpoints/
 .DS_Store
 .pytest_cache/

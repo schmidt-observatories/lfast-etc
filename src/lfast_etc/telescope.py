@@ -14,6 +14,7 @@ So a point source sees ``K_opt`` and an extended source (sky) that fills the
 fiber uniformly sees ``K_opt / eta_fib``.
 """
 from dataclasses import dataclass, field
+import warnings
 import numpy as np
 
 from .constants import THROUGHPUT_DIR, positive
@@ -83,6 +84,9 @@ class Telescope:
             self.combine = spec["combine"]
         if self.combine not in ("fiber", "independent"):
             raise ValueError("combine must be 'fiber' or 'independent'")
+        if self.combine == "fiber" and spec["combine"] != "fiber":
+            warnings.warn(f"the {self.fiber} fiber does not go through the fiber combiner; "
+                          "combine='fiber' is a what-if, not a planned LFAST configuration", stacklevel=2)
         if self.fiber_diameter_arcsec is None:
             self.fiber_diameter_arcsec = spec["diameter_arcsec"]
         s = spec["suffix"]

@@ -8,7 +8,7 @@
 name = "bench_r1800"
 description = "WIYN Bench, 600 @ 10.1 deg, order 1, 412-686 nm, R~1800 (reference notebook)"
 wavelength_min_nm = 412.0
-wavelength_max_nm = 686.0   # config spans to 688 nm; 687 nm is a K_opt=0 point (O2 B band)
+wavelength_max_nm = 686.0   # config spans to 688 nm; K_opt drops to ~5e-9 at 687 nm (O2 B band)
 resolving_power = 1800.0
 pixels_per_resel = 2.2    # dispersion direction only (reference notebook); x fiber-image height when known
 spectrograph_efficiency = 0.3

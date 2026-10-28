@@ -8,7 +8,9 @@ from reference_notebook import run as reference_run
 def test_regression_against_reference_notebook():
     """Bench, 400-1800 nm resel grid, 5800 K V=15 star with an H-alpha line, SNR=50."""
     wl_ref, t_ref, nstar_ref, nsky_ref = reference_run(spectral_lines=())
-    etc = LFASTETC("bench_r1800", n_telescopes=20, wavelength_min_nm=400, wavelength_max_nm=1800)
+    # the reference evaluates the Bench over the whole throughput range, so widen the preset bandpass
+    wide = Instrument.from_preset("bench_r1800", wavelength_min_nm=400, wavelength_max_nm=1800)
+    etc = LFASTETC(wide, n_telescopes=20)
     src = Source.blackbody(5800, mag=15, band="V")
     res = etc.exptime(src, snr=50)
     # the reference grid overshoots lambda_max by one step; compare on the common bins
@@ -268,3 +270,68 @@ def test_summary_types_exptime_vs_mag_callable_qe_and_plots():
     plot_snr_map([12, 16], [10, 100], grid)
     plot_limiting_magnitude(etc, src, [60, 600], 10)
     direct.plot(); direct.plot(what="n_star"); direct.plot_rates()
+
+
+def test_new_plot_helpers_and_exports():
+    import matplotlib
+    matplotlib.use("Agg")
+    from lfast_etc.plotting import plot_vs_n_telescopes, sky_surface_brightness_ab
+    src = Source.blackbody(5800, 15).add_line(656.3, 0.3, 0.05)
+    etc = LFASTETC("bench_r1800")
+    res = etc.snr(src, 600)
+    res.plot_noise_budget(); res.plot_spectrum(seed=1); etc.plot_throughput(); etc.plot_sky(); src.plot()
+    sim = res.simulate(seed=3)
+    good = np.isfinite(res.snr)
+    assert sim.shape == res.snr.shape and np.all(sim[good] > 0)
+    # the realised scatter matches 1/SNR
+    rel = (sim[good] - res.n_star[good] * 600) / (res.n_star[good] * 600) * res.snr[good]
+    assert abs(np.std(rel) - 1) < 0.1
+    t = res.to_table()
+    assert len(t) == len(res.wavelength) and "snr" in t.colnames and t.meta["n_exp"] == 1
+    sb = sky_surface_brightness_ab(etc)
+    m = (etc.wavelength > 540) & (etc.wavelength < 560)
+    assert 19.5 < np.nanmedian(sb[m]) < 21.5                 # grey-time V sky ~ 20.3 AB/arcsec^2
+    plot_vs_n_telescopes(lambda n: LFASTETC("bench_r1800", n_telescopes=n), src, [5, 20, 80], [60, 600], 10,
+                         wavelength=(500, 600))
+    with pytest.raises(ValueError):
+        LFASTETC("bench_r1800", n_telescopes=0)
+    # a zero-throughput bin still collects sky and dark, so the bright-pixel estimate stays finite
+    assert LFASTETC("cshell_r18000", wavelength_min_nm=1383, wavelength_max_nm=1383.05).reads_needed(src, 300) == 1
+    with pytest.warns(UserWarning):
+        Telescope(20, "50um", combine="fiber")
+
+
+def test_review_fixes_bandpass_clip_selector_and_validation():
+    src = Source.blackbody(5800, 15)
+    # an explicit range never leaves the preset bandpass
+    e = LFASTETC("cshell_r18000", wavelength_min_nm=1000, wavelength_max_nm=1900)
+    assert e.wavelength.min() >= 1080 and e.wavelength.max() <= 1750
+    with pytest.raises(ValueError):
+        LFASTETC("cshell_r18000", wavelength_min_nm=500, wavelength_max_nm=600)
+    # a float selector outside the grid raises instead of snapping to the edge bin
+    b = LFASTETC("bench_r1800")
+    with pytest.raises(ValueError):
+        b.snr_grid(src, [15], [100], wavelength=1500.0)
+    with pytest.raises(ValueError):
+        b.limiting_magnitude(src, 100, 10, wavelength=1500.0)
+    # at() interpolates across NaN bins, not into them
+    r = LFASTETC("cshell_r18000", wavelength_min_nm=1368, wavelength_max_nm=1373).exptime(Source.blackbody(5800, 10, "J"), 10)
+    i = np.flatnonzero(np.isfinite(r.exptime) & np.isfinite(np.roll(r.exptime, 1)))[1]
+    assert np.isfinite(r.at(r.wavelength[i] - 1e-6)["exptime"])
+    # validation
+    for bad in (dict(mag=float("nan")), dict(mag=float("inf"))):
+        with pytest.raises(ValueError):
+            Source.blackbody(5800, **bad)
+    with pytest.raises(ValueError):
+        src.add_line(550, 0.3, 0)
+    with pytest.raises(ValueError):
+        src.add_line(550, float("nan"), 0.1)
+    with pytest.raises(ValueError):
+        b.snr(src, float("nan"))
+    with pytest.raises(ValueError):
+        b.reads_needed(src, 600, margin=0)
+    with pytest.raises(ValueError):
+        Instrument.from_preset("bench_r1800", qe=5)
+    with pytest.raises(ValueError):
+        Source.from_arrays([400, 500, 600], [1e-15, 1e-15, 1e-15], flux_unit="W/m2/nm", band="Q")
+    assert Instrument.from_preset("bench_r1800", name="mine").name == "mine"

@@ -36,13 +36,27 @@ def _zero_point(band, system):
     return AB_ZP_JY if system.upper() == "AB" else BANDS[band][2]
 
 
+def _band_delta_nu(band):
+    """Frequency width of a box band [Hz] (reference-notebook approximation c*dlam/lam0^2)."""
+    center, width, _ = BANDS[band]
+    return C_LIGHT * (width * 1e-9) / (center * 1e-9) ** 2
+
+
 def band_flux_W_m2(mag, band, system="Vega"):
     """Band-integrated flux [W/m^2] for an apparent magnitude in a box band."""
     zp = _zero_point(band, system)
-    center, width, _ = BANDS[band]
     f_nu = zp * 1e-26 * 10 ** (-0.4 * mag)                  # W/m^2/Hz
-    delta_nu = C_LIGHT * (width * 1e-9) / (center * 1e-9) ** 2
-    return f_nu * delta_nu
+    return f_nu * _band_delta_nu(band)
+
+
+def _box_band_magnitude(flux_fn, band, system):
+    """Magnitude of an absolute ``F_lambda(wavelength_nm)`` [W/m^2/nm] spectrum in a box band."""
+    zp = _zero_point(band, system)
+    c, w, _ = BANDS[band]
+    grid = np.linspace(c - w / 2, c + w / 2, 2001)
+    f_band = np.trapezoid(flux_fn(grid), grid)
+    with np.errstate(divide="ignore"):
+        return -2.5 * np.log10(f_band / _band_delta_nu(band) / (zp * 1e-26))
 
 
 def planck_W_m2_nm_sr(wavelength_nm, teff):
@@ -73,6 +87,8 @@ class Source:
     def __post_init__(self):
         _zero_point(self.band, self.system)
         self.mag = float(self.mag)
+        if not np.isfinite(self.mag):
+            raise ValueError(f"mag must be finite, got {self.mag!r}")
         c, w, _ = BANDS[self.band]
         grid = np.linspace(c - w / 2, c + w / 2, 2001)
         integral = np.trapezoid(self.shape(grid), grid)
@@ -120,12 +136,7 @@ class Source:
             fl = fl / wl ** 2
         shape = lambda w: np.interp(w, wl, fl, left=0.0, right=0.0)
         if flux_unit == "W/m2/nm":
-            c, w, _ = BANDS[band]
-            grid = np.linspace(c - w / 2, c + w / 2, 2001)
-            f_band = np.trapezoid(shape(grid), grid)
-            zp = _zero_point(band, system)
-            delta_nu = C_LIGHT * (w * 1e-9) / (c * 1e-9) ** 2
-            mag = -2.5 * np.log10(f_band / delta_nu / (zp * 1e-26))
+            mag = _box_band_magnitude(shape, band, system)
         elif mag is None:
             raise ValueError("mag is required unless flux_unit='W/m2/nm'")
         return cls(shape, mag, band, system, label="user spectrum")
@@ -135,9 +146,10 @@ class Source:
         """Add a Gaussian line. ``depth`` > 0 is absorption (fraction of
         continuum removed at the core, at most 1), < 0 is emission. The
         magnitude stays that of the continuum."""
-        if depth > 1:
-            raise ValueError("absorption depth cannot exceed 1")
-        self.lines.append((float(center_nm), float(depth), float(sigma_nm)))
+        depth = float(depth)
+        if not np.isfinite(depth) or depth > 1:
+            raise ValueError("depth must be finite and <= 1 (absorption fraction)")
+        self.lines.append((positive("center_nm", center_nm), depth, positive("sigma_nm", sigma_nm)))
         return self
 
     # ---- evaluation ---------------------------------------------------------
@@ -174,13 +186,12 @@ class Source:
 
     def magnitude(self, band, system=None):
         """Synthetic magnitude of this source in another box band."""
-        system = system or self.system
-        zp = _zero_point(band, system)
-        c, w, _ = BANDS[band]
-        grid = np.linspace(c - w / 2, c + w / 2, 2001)
-        f_band = np.trapezoid(self.flux(grid), grid)
-        delta_nu = C_LIGHT * (w * 1e-9) / (c * 1e-9) ** 2
-        return -2.5 * np.log10(f_band / delta_nu / (zp * 1e-26))
+        return _box_band_magnitude(self.flux, band, system or self.system)
+
+    def plot(self, wavelength_nm=None, ax=None, photon=False):
+        """Plot the SED with the normalising band shaded (see :func:`lfast_etc.plotting.plot_source`)."""
+        from .plotting import plot_source
+        return plot_source(self, wavelength_nm=wavelength_nm, ax=ax, photon=photon)
 
     def describe(self):
         return f"{self.label}, {self.band}={self.mag:.2f} ({self.system})"
