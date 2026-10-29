@@ -53,6 +53,13 @@ Added
 
 Changed
 
+* ``Telescope.throughput_cascade()`` and ``LFASTETC.throughput_cascade()`` /
+  ``plot_throughput_cascade()`` lay the shipped ``K_opt`` out as the Choi et al. (2026) budget:
+  the paper's wavelength-independent stages (``CHOI_STAGES``) plus a derived residual for mirror,
+  corrector and fiber attenuation, then injection, seeing, spectrograph, slit and QE.
+* ``seeing_psf="choi"`` is the new default: the seeing factor comes from a table calibrated to both
+  shipped ``eta_fib`` curves with the paper's non-seeing blur, so 1.5 arcsec costs 0.69 at 550 nm
+  rather than the bare-Moffat 0.62. ``"moffat"`` and ``"gaussian"`` remain.
 * CSHELL detector from Brown et al. (2026, SPIE 14149, Table 1; the IRTF measurements of the
   Hughes 256x256 SBRC InSb): dark current 0.5 e-/s/pix (the IRTF page's 5 e-/s was the K-band
   background through the IRTF), read noise 22 e- at 6 Fowler samples, 55,000 e- 1%-linear well at the

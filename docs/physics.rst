@@ -133,6 +133,46 @@ source the neighbouring resels add along the dispersion, which makes the single-
 ``Instrument`` without a ``full_well`` (``inf``) is never flagged and reports
 ``saturated_fraction = None``.
 
+.. _budget:
+
+Throughput budget (Choi et al. 2026)
+------------------------------------
+
+The shipped :math:`K_{opt}` and :math:`\eta_{fib}` curves are the end product of the
+component-by-component budget of Choi et al. (2026, SPIE 14147, 1414736). Two facts about the
+data let the budget be reconstructed without the paper's intermediate curves:
+
+* ``K_opt_50 / K_opt_18`` equals ``eta_fib_50 / eta_fib_18`` at every wavelength to 1e-15, so
+  :math:`K_{opt} = H(\lambda)\,\eta_{fib}(\lambda)` with one fiber-independent hardware curve
+  :math:`H`;
+* :math:`H` is zero in the telluric cores, so it includes the paper's atmosphere (LBLRTM, Kitt
+  Peak, airmass 1.3, 5 mm precipitable water vapour).
+
+``Telescope.throughput_cascade(wavelength_nm, path="star"|"sky")`` lays :math:`H\,\eta_{fib}` out
+as the paper's stages. The wavelength-independent ones are quoted in the paper and shipped as
+``lfast_etc.telescope.CHOI_STAGES``: 5.1% obscuration by the prime-focus corrector and spiders,
+a 5% allowance for laser-ablation damage at the fiber puck, 92% Fresnel transmission for each of the
+two circular fiber segments, 78.5% for the fiber combiner (microlens, dichroic, imaging lens,
+rectangular output fiber) and four 1% miscellaneous losses. The wavelength-dependent remainder,
+mirror reflectivity times the MgF2-coated corrector (8 surfaces, 74-89%) and bulk times fiber
+attenuation over 62 m, is recovered as the residual :math:`H / T_{atm} / 0.575`; it comes out at
+0.70-0.74 over 550-1550 nm, falling to 0.60 at 1750 nm and 0.34 at 400 nm, which is what
+aluminium, MgF2 and silica Rayleigh scattering should give, so the budget is arithmetically
+self-consistent. The atmosphere stage uses the SkyCalc transmission (airmass 1.3, 2.5 mm PWV)
+as a proxy for the paper's LBLRTM curve, so the residual absorbs the difference between the two
+atmospheres, mostly in the water bands and below 450 nm. ``LFASTETC.throughput_cascade()`` appends
+the spectrograph optics, slit and QE, and ``plot_throughput_cascade()`` draws the cumulative
+curves like the paper's Figure 11. At 550 nm on the Bench the star path runs 0.85 (atmosphere),
+0.95, 0.70, 0.405 (injection), 0.95, 0.85, 0.785, 0.96, 0.30 (spectrograph), 0.75 (QE) to 2.2%
+end to end at the design seeing.
+
+Two open points for the LFAST team. (i) ``Telescope.diameter_m = 0.726`` follows the reference
+notebook, which says the 15.5 cm obscuration is already in the budget; it is (the 5.1% stage), but
+0.726 m is 8.7% less area than the 0.76 m clear aperture of Angel et al. (2022), so either the
+obscuration is counted twice or 0.726 m is a polished clear aperture not stated in the papers.
+(ii) Separating the instrument-only curve from the LBLRTM transmission would remove the proxy
+atmosphere here and fix the double attenuation of the sky path (#32).
+
 .. _seeing:
 
 Seeing
@@ -153,13 +193,19 @@ Kolmogorov turbulence, 2.5 for profiles with strong wings) and a Gaussian altern
 (``seeing_psf="gaussian"``). The seeing is scaled with wavelength as :math:`\lambda^{-1/5}`
 from its 500 nm value. The sky, which fills the fiber whatever the seeing, is unchanged. The
 model is geometric (no diffraction, no focal-ratio degradation), so it is a *relative* correction
-and only as good as the reference seeing. The 1.0 arcsec default is the LFAST design seeing (Choi et
-al. 2024: "we plan for a 1 arcsec site, and design for a fiber that subtends 1.4 arcsec"). The shipped
-:math:`\eta_{fib}` (0.405 at 550 nm) is 0.64 of the geometric Moffat coupling at 1.0 arcsec (0.636), so
-about a third of the injection loss is non-seeing (focal-ratio degradation, connectors, Fresnel);
-``Telescope.implied_seeing_ref()`` (1.47 arcsec at 550 nm) is the upper limit if it were all seeing.
-The ratio form scales only the seeing part of the loss. The near-infrared factor is the least
-reliable because diffraction grows with wavelength while the modelled seeing shrinks. ``Telescope.plot_fiber_coupling()`` draws
+and only as good as the reference seeing. The 1.0 arcsec default is the seeing Choi et al. (2026) assume: a Moffat with
+:math:`\beta = 4.765`, convolved with the mirror-figure PSF, wind shake and a 0.5 arcsec vibration
+kernel, and integrated over the fiber. The shipped :math:`\eta_{fib}` (0.405 at 550 nm) is 0.64
+of a bare 1 arcsec Moffat coupling (0.636); the difference is that non-seeing blur. The default
+``seeing_psf="choi"`` therefore does not scale a bare disc: ``scripts/build_seeing_table.py``
+fits, at each wavelength, a Gaussian non-seeing kernel (FWHM 1.0-1.4 arcsec) and a grey floor to
+reproduce both shipped curves (18 and 50 um fibers) at 1 arcsec, then tabulates
+:math:`E(s)/E(1'')` for seeing 0.4-3.0 arcsec. Because the non-seeing blur dominates part of the
+image, the seeing dependence is gentler than the bare disc gives: at 550 nm, 1.5 arcsec costs 0.69
+(bare Moffat 0.62), 2.0 arcsec 0.49 (0.40), and 0.8 arcsec gains 1.15 (1.20); at 1650 nm the
+factors are 0.78, 0.60 and 1.09. The 50 um fiber keeps 0.83 at 2 arcsec. ``seeing_psf="moffat"``
+and ``"gaussian"`` remain available as the bare discs; ``implied_seeing_ref()`` (1.47 arcsec)
+is the bare-disc upper limit. Seeing outside the table is clamped to its edges. ``Telescope.plot_fiber_coupling()`` draws
 :math:`E(s)` for both shapes.
 
 Known limitations

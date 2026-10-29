@@ -472,6 +472,27 @@ class LFASTETC:
             return 1
         return int(max(1, np.ceil(np.nanmax(peak) / (margin * self.instrument.full_well))))
 
+    # ---- throughput cascade ---------------------------------------------------
+    def throughput_cascade(self, path="star"):
+        """``Telescope.throughput_cascade`` on this grid, extended with the spectrograph optics,
+        slit and detector QE; the last cumulative entry is the end-to-end throughput."""
+        ins = self.instrument
+        c = self.telescope.throughput_cascade(self.wavelength, path=path, sky=self.sky)
+        w = self.wavelength
+        extra = [dict(name=f"spectrograph optics S_opt ({ins.name})", transmission=np.full_like(w, ins.spectrograph_efficiency), source="instrument preset")]
+        if ins.slit_throughput != 1.0:
+            extra.append(dict(name="slit throughput", transmission=np.full_like(w, ins.slit_throughput), source="instrument preset"))
+        extra.append(dict(name="detector QE", transmission=ins.qe_at(w) * np.ones_like(w), source="instrument preset"))
+        run = c["cumulative"][-1]
+        for s in extra:
+            run = run * s["transmission"]; c["stages"].append(s); c["cumulative"].append(run)
+        return c
+
+    def plot_throughput_cascade(self, ax=None, path="star"):
+        """Cumulative throughput after each stage of the Choi et al. (2026) budget plus the instrument."""
+        from .plotting import plot_throughput_cascade
+        return plot_throughput_cascade(self, ax=ax, path=path)
+
     # ---- plots --------------------------------------------------------------
     def plot_throughput(self, ax=None):
         """Telescope, fiber, instrument and end-to-end throughput versus wavelength."""
