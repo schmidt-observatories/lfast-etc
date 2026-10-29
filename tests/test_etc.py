@@ -9,7 +9,8 @@ def test_regression_against_reference_notebook():
     """Bench, 400-1800 nm resel grid, 5800 K V=15 star with an H-alpha line, SNR=50."""
     wl_ref, t_ref, nstar_ref, nsky_ref = reference_run(spectral_lines=())
     # the reference evaluates the Bench over the whole throughput range, so widen the preset bandpass
-    wide = Instrument.from_preset("bench_r1800", wavelength_min_nm=400, wavelength_max_nm=1800)
+    wide = Instrument.from_preset("bench_r1800", wavelength_min_nm=400, wavelength_max_nm=1800,
+                                  fiber_image_px=1.0)      # the notebook counts the dispersion direction only
     etc = LFASTETC(wide, n_telescopes=20)
     src = Source.blackbody(5800, mag=15, band="V")
     res = etc.exptime(src, snr=50)
@@ -205,7 +206,7 @@ def test_nan_in_zero_throughput_bins_and_at_outside_grid():
     r = etc.exptime(src, snr=10)
     assert np.isnan(r.exptime).any()
     good = etc.telescope.kopt(etc.wavelength) > 1e-3        # outside the telluric cores
-    assert np.nanmax(r.exptime[good]) < 1e6
+    assert np.nanmax(r.exptime[good]) < 1e7     # n_pix is now 36 for R=18,000 (#13)
     m = etc.limiting_magnitude(src, 600, 10, wavelength="all")
     assert np.isnan(m[~(etc.telescope.kopt(etc.wavelength) > 0)]).all()
     assert np.nanmin(m[good]) > 5
@@ -353,16 +354,17 @@ def test_review_fixes_bandpass_clip_selector_and_validation():
 def test_peak_pixel_follows_the_brightest_packed_input():
     """#36: N=21 is one full 20-group plus one, so the brightest detector still sees 20 telescopes."""
     src = Source.blackbody(5800, 8, "V")
-    peak = lambda **kw: np.nanmax(LFASTETC("bench_r1800", telescope=Telescope(**kw)).snr(src, 34.24).peak_e_per_pixel)
+    T = 54.57          # s: a V=8 star on 20 telescopes fills the STA1 well 1.2x in one read (tophat peak)
+    peak = lambda **kw: np.nanmax(LFASTETC("bench_r1800", telescope=Telescope(**kw)).snr(src, T).peak_e_per_pixel)
     full = peak(n_telescopes=20)
     for n in (21, 39, 40, 41):
         assert peak(n_telescopes=n) == pytest.approx(full, rel=1e-12)
     assert peak(n_telescopes=19) < full
     assert peak(n_telescopes=21, combine="independent") == pytest.approx(peak(n_telescopes=1, combine="independent"), rel=1e-12)
     ideal = peak(n_telescopes=40, telescopes_per_input=None)
-    assert ideal == pytest.approx(2 * full - 3e-4 * 34.24, rel=1e-9)   # all 40 on one detector (dark once)
+    assert ideal == pytest.approx(2 * full - 3e-4 * T, rel=1e-9)   # all 40 on one detector (dark once)
     etc = LFASTETC("bench_r1800", telescope=Telescope(21))
-    assert etc.snr(src, 34.24).saturated.any() and etc.reads_needed(src, 34.24) == 2
+    assert etc.snr(src, T).saturated.any() and etc.reads_needed(src, T) == 2
     # the co-added SNR is untouched: N=21 is still noisier than two full arrays
     assert np.nanmedian(etc.snr(src, 100).snr) < np.nanmedian(LFASTETC("bench_r1800", telescope=Telescope(40)).snr(src, 100).snr)
 
@@ -457,3 +459,74 @@ def test_at_exact_centres_and_one_bin_grid():
     assert len(one.wavelength) == 1
     assert one.at(one.wavelength[0])["snr"] == one.snr[0] and np.isfinite(one.snr[0])
     assert np.isnan(one.at(one.wavelength[0] + 0.01)["snr"])      # off-centre on a one-bin grid: nothing to interpolate
+
+
+# ---- #13 / #19: extraction aperture, detector profile, seeing --------------
+def test_n_pix_is_the_full_aperture_with_a_circular_fiber_image_by_default():
+    b = Instrument.from_preset("bench_r1800")
+    assert b.fiber_image_px is None and b.spatial_px == 2.2 and b.n_pix == pytest.approx(2.2 * 2.2)
+    assert Instrument.from_preset("bench_r1800", fiber_image_px=1.0).n_pix == 2.2
+    assert Instrument.from_preset("bench_r1800", fiber_image_px=3.0).n_pix == pytest.approx(6.6)
+    # CSHELL slit modes narrow the dispersion direction only: the spatial height stays the 6 px fiber image
+    assert Instrument.from_preset("cshell_r43000").n_pix == pytest.approx(2.5 * 6.0)
+    assert Instrument.from_preset("cshell_r18000").n_pix == pytest.approx(6.0 * 6.0)
+    with pytest.raises(ValueError):
+        Instrument.from_preset("bench_r1800", fiber_image_px=0)
+
+
+def test_peak_fraction_by_profile():
+    from lfast_etc.instrument import peak_pixel_fraction
+    u, t, g = (peak_pixel_fraction(2.5, 2.5, p) for p in ("uniform", "tophat", "gaussian"))
+    assert u == pytest.approx(1 / 6.25)
+    assert u < t < 1 and 0 < g < 1       # a Gaussian of the same FWHM has wings, so its peak can sit below uniform
+    assert Instrument.from_preset("bench_r1800").profile == "tophat"
+    assert Instrument.from_preset("bench_r1800", profile="uniform").peak_fraction == pytest.approx(1 / 2.2 ** 2)
+    # a big disc: the peak pixel holds about 1 / (pi a b) of the light
+    assert peak_pixel_fraction(12, 12, "tophat") == pytest.approx(4 / (np.pi * 144), rel=0.15)
+    # a sharp Gaussian: nearly everything lands in one pixel
+    assert peak_pixel_fraction(0.3, 0.3, "gaussian") > 0.9
+    with pytest.raises(ValueError):
+        Instrument.from_preset("bench_r1800", profile="airy")
+
+
+def test_uniform_profile_reproduces_the_uniform_share_peak():
+    ins = Instrument.from_preset("bench_r1800", profile="uniform")
+    etc = LFASTETC(ins); src = Source.blackbody(5800, 8)
+    r = etc.snr(src, 10)
+    share = etc.telescope.telescopes_on_brightest_input / etc.telescope.n_telescopes
+    expect = ((r.n_star / r.n_pix + r.n_sky_pix) * share + ins.dark_current) * 10
+    np.testing.assert_allclose(r.peak_e_per_pixel, expect, rtol=1e-12)
+    # top hat peaks higher than the uniform share, so it saturates earlier
+    rt = LFASTETC("bench_r1800").snr(src, 10)
+    assert np.nanmax(rt.peak_e_per_pixel) > np.nanmax(r.peak_e_per_pixel)
+    assert rt.n_pix == r.n_pix
+
+
+def test_seeing_scales_the_point_source_path_only():
+    ref = Telescope()
+    assert ref.seeing_arcsec is None and ref.seeing_factor(550.0) == 1.0
+    assert Telescope(seeing_arcsec=1.0).seeing_factor(550.0) == pytest.approx(1.0)   # the 1.0" reference
+    bad, good = Telescope(seeing_arcsec=2.0), Telescope(seeing_arcsec=0.6)
+    assert bad.seeing_factor(550.0) < 1.0 < good.seeing_factor(550.0)
+    assert good.seeing_factor(550.0) <= 1 / ref.fiber_coupling(1.0, 550.0)
+    assert ref.fiber_coupling(0.01, 550.0) == pytest.approx(1.0, abs=1e-3)   # all the light inside the fiber
+    assert ref.fiber_coupling(1.0, 550.0, psf="gaussian") != ref.fiber_coupling(1.0, 550.0, psf="moffat")
+    assert bad.seeing_factor(1600.0) > bad.seeing_factor(550.0)                 # seeing improves with wavelength
+    src = Source.blackbody(5800, 15)
+    e0, e2 = LFASTETC("bench_r1800"), LFASTETC("bench_r1800", telescope=bad)
+    assert np.nanmedian(e2.snr(src, 100).snr) < np.nanmedian(e0.snr(src, 100).snr)
+    np.testing.assert_allclose(e2.sky_rate_per_pixel(), e0.sky_rate_per_pixel())
+    with pytest.raises(ValueError):
+        Telescope(seeing_arcsec=-1)
+    with pytest.raises(ValueError):
+        Telescope(seeing_psf="airy")
+
+
+def test_profile_and_seeing_plots_return_axes():
+    import matplotlib; matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    ax = Instrument.from_preset("cshell_r43000").plot_profile()
+    assert ax.get_images() and "peak" in ax.get_title()
+    ax2 = Telescope(seeing_arcsec=1.5).plot_fiber_coupling()
+    assert len(ax2.get_lines()) >= 2
+    plt.close("all")

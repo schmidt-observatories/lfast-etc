@@ -201,3 +201,39 @@ def plot_limiting_magnitude(etc, source, exptimes, snr, ax=None, label_fmt="{t:g
     ax.set_ylabel(f"Limiting {source.band} mag (SNR={snr:g}/resel)")
     ax.legend(title="exposure")
     return ax
+
+
+def plot_profile(instrument, ax=None):
+    """Pixelated fiber image of one resel on the detector (#19) with the peak fraction."""
+    ax = _ax(ax, (4.2, 4))
+    img = instrument.pixel_image()
+    n = img.shape[0]
+    ext = (-n / 2, n / 2, -n / 2, n / 2)
+    im = ax.imshow(img, origin="lower", extent=ext, cmap="viridis", interpolation="nearest")
+    if n > 1:
+        for k in np.arange(-n / 2, n / 2 + 1):
+            ax.axhline(k, color="w", lw=0.3, alpha=0.5); ax.axvline(k, color="w", lw=0.3, alpha=0.5)
+    ax.set_xlabel("dispersion (pixels)"); ax.set_ylabel("spatial (pixels)")
+    ax.set_title(f"{instrument.name}: {instrument.profile}, {instrument.pixels_per_resel:g} x "
+                 f"{instrument.spatial_px:g} px, n_pix={instrument.n_pix:.3g}\npeak pixel holds "
+                 f"{100 * instrument.peak_fraction:.1f}% of the resel", fontsize=9)
+    plt.colorbar(im, ax=ax, fraction=0.046, label="fraction of resel light per pixel")
+    return ax
+
+
+def plot_fiber_coupling(telescope, ax=None, seeing=None):
+    """Geometric fraction of a point source inside the fiber versus seeing FWHM at
+    500 nm (#14), for both PSF shapes, with the reference and current seeing marked."""
+    ax = _ax(ax, (6.5, 4))
+    seeing = np.linspace(0.4, 3.0, 131) if seeing is None else np.asarray(seeing, float)
+    for psf, ls in (("moffat", "-"), ("gaussian", "--")):
+        label = f"{psf} (beta={telescope.moffat_beta:g})" if psf == "moffat" else psf
+        ax.plot(seeing, telescope.fiber_coupling(seeing, psf=psf), ls, label=label)
+    ax.axvline(telescope.seeing_ref_arcsec, color="0.5", lw=0.8, ls=":", label=f"reference {telescope.seeing_ref_arcsec:g}\"")
+    if telescope.seeing_arcsec is not None:
+        ax.axvline(telescope.seeing_arcsec, color="C3", lw=0.8, label=f"current {telescope.seeing_arcsec:g}\" (x{telescope.seeing_factor(500.0):.2f})")
+    ax.set_xlabel("seeing FWHM at 500 nm (arcsec)")
+    ax.set_ylabel(f"fraction inside the {telescope.fiber_diameter_arcsec:.2f}\" fiber")
+    ax.set_ylim(0, 1); ax.set_xlim(seeing.min(), seeing.max())
+    ax.legend(fontsize=8)
+    return ax

@@ -6,9 +6,9 @@ Resolution elements
 
 Everything in ``lfast_etc`` is computed per **resolution element** (resel). The wavelength grid
 has one point per resel, :math:`\lambda_{j+1} = \lambda_j (1 + 1/R)`, and each bin is one resel
-wide, :math:`\delta\lambda_j = \lambda_j/R`. A resel is spread over :math:`n_{pix}` detector
-pixels in the dispersion direction (``pixels_per_resel`` in the preset: 2.2 for the Bench, 2.5
-for CSHELL).
+wide, :math:`\delta\lambda_j = \lambda_j/R`. A resel is the image of the fiber face,
+``pixels_per_resel`` wide along the dispersion direction (2.2 for the Bench, 6 / 5 / 2.5 for the
+CSHELL modes) and ``fiber_image_px`` high (circular by default), :math:`n_{pix}` pixels in all.
 
 Three quantities carry units you should keep straight:
 

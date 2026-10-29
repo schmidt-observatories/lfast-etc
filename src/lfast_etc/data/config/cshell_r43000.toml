@@ -14,6 +14,7 @@ wavelength_min_nm = 1080.0
 wavelength_max_nm = 1750.0
 resolving_power = 43000.0
 pixels_per_resel = 2.5    # dispersion direction only: the IRTF 0.5" slit value at R=43,000
+fiber_image_px = 6.0      # spatial height: the slit narrows the dispersion direction only (native fiber image, cshell_r18000)
 spectrograph_efficiency = 0.1
 slit_throughput = 0.5    # PLACEHOLDER
 qe = 0.8               # placeholder flat QE

@@ -48,8 +48,12 @@ field                                 meaning
 ``wavelength_min_nm``, ``_max_nm``    bandpass of the configuration. An explicit range passed to
                                       ``LFASTETC`` is clipped to it.
 ``resolving_power``                   :math:`R = \lambda/\delta\lambda`
-``pixels_per_resel``                  pixels in the extraction aperture per resel (Howell's
-                                      :math:`n_{pix}`). The presets count the dispersion direction only.
+``pixels_per_resel``                  pixels spanned by one resel along the dispersion direction
+``fiber_image_px``                    spatial height of the fiber image in pixels at 1x1 binning;
+                                      ``None`` means circular (= ``pixels_per_resel``). Howell's
+                                      :math:`n_{pix}` is the product (:ref:`aperture`)
+``profile``                           ``"tophat"`` (default), ``"uniform"`` or ``"gaussian"``: the
+                                      fiber-image shape for the peak-pixel estimate (:ref:`aperture`)
 ``spectrograph_efficiency``           optical throughput of the spectrograph, excluding QE and slit
 ``slit_throughput``                   extra factor for slit modes (1 for the bare fiber)
 ``qe``                                detector QE, a number in TOML; in Python also a callable

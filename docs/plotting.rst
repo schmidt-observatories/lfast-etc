@@ -70,6 +70,22 @@ Source plot
         Source.blackbody(teff, 15, "V").plot(wavelength_nm=np.linspace(380, 1800, 2000), ax=ax)
     ax.set_title("three blackbodies at V = 15", fontsize=9); ax.legend_.remove()
 
+Detector profile and seeing
+---------------------------
+
+``ins.plot_profile()``: the fiber image of one resel on the pixel grid, with the peak-pixel
+fraction used by the saturation flag (:ref:`aperture`). ``tel.plot_fiber_coupling()``: the
+fraction of a point source inside the fiber versus seeing for the Moffat and Gaussian discs,
+with the reference and current seeing marked (:ref:`seeing`).
+
+.. plot::
+
+    from lfast_etc import Instrument, Telescope
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), gridspec_kw=dict(width_ratios=[1, 1.4]))
+    Instrument.from_preset("cshell_r43000").plot_profile(ax=axes[0])
+    Telescope(seeing_arcsec=1.5).plot_fiber_coupling(ax=axes[1])
+    fig.tight_layout()
+
 Sensitivity plots
 -----------------
 

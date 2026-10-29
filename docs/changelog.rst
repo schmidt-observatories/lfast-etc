@@ -53,6 +53,16 @@ Added
 
 Changed
 
+* The extraction aperture is the full fiber image (#13): ``n_pix = pixels_per_resel *
+  fiber_image_px``, with a circular image by default and the native 6 px height set explicitly
+  for the CSHELL slit modes. Sky, dark and read-noise terms grow accordingly (x2.2 on the Bench);
+  ``fiber_image_px=1.0`` restores the reference notebook's dispersion-only count.
+* The peak pixel uses a rendered fiber-image profile (#19): ``Instrument.profile`` is
+  ``"tophat"`` (default), ``"uniform"`` or ``"gaussian"``; ``peak_fraction``, ``pixel_image()``
+  and ``plot_profile()`` expose it. Saturation flags and ``reads_needed`` follow.
+* ``Telescope(seeing_arcsec=...)`` scales the point-source throughput with a Moffat (or Gaussian)
+  seeing disc integrated over the fiber, relative to a placeholder 1.0 arcsec reference (#14);
+  ``fiber_coupling()`` and ``plot_fiber_coupling()`` expose it. The sky path is unchanged.
 * Documentation theme is ``pydata_sphinx_theme`` (as for the WCC ETC).
 * The duplicated wavelength-selector and box-band code paths are merged.
 
