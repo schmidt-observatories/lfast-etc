@@ -153,12 +153,13 @@ Kolmogorov turbulence, 2.5 for profiles with strong wings) and a Gaussian altern
 (``seeing_psf="gaussian"``). The seeing is scaled with wavelength as :math:`\lambda^{-1/5}`
 from its 500 nm value. The sky, which fills the fiber whatever the seeing, is unchanged. The
 model is geometric (no diffraction, no focal-ratio degradation), so it is a *relative* correction
-and only as good as the reference seeing. Note that the shipped :math:`\eta_{fib}` (0.405 at 550 nm)
-equals the geometric Moffat coupling at about 1.5 arcsec, not 1.0 (``Telescope.implied_seeing_ref()``):
-either the curves are at 1.5 arcsec seeing or :math:`\eta_{fib}` carries large non-seeing losses.
-Until that is settled, ``seeing_factor`` numbers quoted against the 1.0 arcsec placeholder overstate
-the loss in median seeing, and the near-infrared factor is the least reliable because diffraction
-grows with wavelength while the modelled seeing shrinks. ``Telescope.plot_fiber_coupling()`` draws
+and only as good as the reference seeing. The 1.0 arcsec default is the LFAST design seeing (Choi et
+al. 2024: "we plan for a 1 arcsec site, and design for a fiber that subtends 1.4 arcsec"). The shipped
+:math:`\eta_{fib}` (0.405 at 550 nm) is 0.64 of the geometric Moffat coupling at 1.0 arcsec (0.636), so
+about a third of the injection loss is non-seeing (focal-ratio degradation, connectors, Fresnel);
+``Telescope.implied_seeing_ref()`` (1.47 arcsec at 550 nm) is the upper limit if it were all seeing.
+The ratio form scales only the seeing part of the loss. The near-infrared factor is the least
+reliable because diffraction grows with wavelength while the modelled seeing shrinks. ``Telescope.plot_fiber_coupling()`` draws
 :math:`E(s)` for both shapes.
 
 Known limitations
@@ -166,7 +167,8 @@ Known limitations
 
 * QE is a flat placeholder per instrument (pass a callable ``qe(wavelength_nm)`` for a curve).
 * CSHELL slit losses are placeholders. Full wells are the WIYN STA1 value (87,500 e-) for the
-  Bench and 40,000 e- for CSHELL, inferred from the IRTF page's "half capacity" at 20,000 e-.
+  Bench and 55,000 e- for CSHELL (Brown et al. 2026, Table 1: the 1%-linear well at the default
+  bias; up to 234,000 e- at higher bias).
 * One sky table at airmass 1.3, sampled at R=20,000; no airmass or moon-phase model beyond a
   scale factor. For the CSHELL presets (R > 20,000) each resel takes the nearest sample, so
   airglow lines are pre-smoothed to R=20,000; regenerate a finer SkyCalc table for line-level work.

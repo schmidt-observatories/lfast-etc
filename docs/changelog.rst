@@ -53,6 +53,10 @@ Added
 
 Changed
 
+* CSHELL detector from Brown et al. (2026, SPIE 14149, Table 1; the IRTF measurements of the
+  Hughes 256x256 SBRC InSb): dark current 0.5 e-/s/pix (the IRTF page's 5 e-/s was the K-band
+  background through the IRTF), read noise 22 e- at 6 Fowler samples, 55,000 e- 1%-linear well at the
+  default bias, QE 0.8. CSHELL faint limits recover about 1 mag relative to the 5 e-/s assumption.
 * The extraction aperture is the full fiber image (#13): ``n_pix = pixels_per_resel *
   fiber_image_px``, with a circular image by default and the native 6 px height set explicitly
   for the CSHELL slit modes. Sky, dark and read-noise terms grow accordingly (x2.2 on the Bench);
@@ -65,8 +69,7 @@ Changed
   ``fiber_coupling()`` and ``plot_fiber_coupling()`` expose it. The sky path is unchanged.
 
 * Full wells are sourced instead of placeholders: 87,500 e- for every Bench mode (WIYN STA1
-  CCD page, 1% linearity to 63,000 e-) and 40,000 e- for CSHELL (IRTF page: 20,000 e- "fills the
-  wells to half capacity"). Saturation flags, ``reads_needed`` and the web markers follow.
+  CCD page, 1% linearity to 63,000 e-) and, for CSHELL, 55,000 e- (Brown et al. 2026; superseding the 40,000 e- inferred from the IRTF page). Saturation flags, ``reads_needed`` and the web markers follow.
 * Documentation theme is ``pydata_sphinx_theme`` (as for the WCC ETC).
 * The duplicated wavelength-selector and box-band code paths are merged.
 

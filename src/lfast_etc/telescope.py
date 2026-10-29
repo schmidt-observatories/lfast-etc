@@ -66,7 +66,8 @@ class Telescope:
         wavelength as ``(lambda / 500 nm) ** -0.2``.
     seeing_ref_arcsec : float
         Seeing assumed by the shipped ``K_opt``/``eta_fib`` curves (Choi et al.
-        2026). 1.0 arcsec is a placeholder until the reference is confirmed;
+        2026). 1.0 arcsec is the LFAST design seeing (Choi et al. 2024) and is kept until
+        the curves' reference is confirmed;
         ``implied_seeing_ref()`` (about 1.5" at 550 nm) is the value at which the
         geometric coupling alone would explain the shipped ``eta_fib``.
     seeing_psf : {"moffat", "gaussian"}

@@ -143,14 +143,14 @@ def test_every_preset_runs_inside_the_throughput_range(name):
 
 
 def test_cshell_presets_follow_the_irtf_detector_and_dispersion():
-    """Detector numbers from the IRTF CSHELL page; pixels per resel scale as 2.5 x 43,000 / R
+    """Detector numbers from Brown et al. 2026 (IRTF measurements); pixels per resel scale as 2.5 x 43,000 / R
     (2.7 km/s per pixel), slit losses and efficiency stay placeholders."""
     for name, npix in (("cshell_r18000", 6.0), ("cshell_r21500", 5.0), ("cshell_r43000", 2.5)):
         ins = Instrument.from_preset(name)
         assert ins.pixels_per_resel == npix
         assert ins.pixels_per_resel == pytest.approx(2.5 * 43000 / ins.resolving_power, rel=0.01)
-        assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (22.0, 5.0, 8.0)   # 22 e-: Fowler-sampled
-        assert ins.full_well == 40000.0        # IRTF page: 1000 e-/s x 20 s 'fills the wells to half capacity'
+        assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (22.0, 0.5, 8.0)   # Brown et al. 2026, Table 1
+        assert ins.full_well == 55000.0        # 1% linear well at the default bias (Brown et al. 2026, Table 1)
         assert ins.free_spectral_range_frac == 2.5e-3 and ins.spectrograph_efficiency == 0.1
 
 
