@@ -58,6 +58,23 @@ class Telescope:
         is already in the throughput budget; do not double count it.
     fiber_diameter_arcsec : float or None
         Override the on-sky fiber diameter.
+    seeing_arcsec : float or None
+        Seeing FWHM at 500 nm. ``None`` leaves ``K_opt`` as shipped. Otherwise
+        the point-source throughput is scaled by the fraction of a seeing disc
+        inside the fiber relative to the same fraction at ``seeing_ref_arcsec``
+        (#14); the sky path is unchanged. The seeing is scaled with
+        wavelength as ``(lambda / 500 nm) ** -0.2``.
+    seeing_ref_arcsec : float
+        Seeing assumed by the shipped ``K_opt``/``eta_fib`` curves (Choi et al.
+        2026). 1.0 arcsec is the LFAST design seeing (Choi et al. 2024) and is kept until
+        the curves' reference is confirmed;
+        ``implied_seeing_ref()`` (about 1.5" at 550 nm) is the value at which the
+        geometric coupling alone would explain the shipped ``eta_fib``.
+    seeing_psf : {"moffat", "gaussian"}
+        Seeing-disc shape; Moffat with ``moffat_beta`` by default.
+    moffat_beta : float
+        Moffat index (4.77 for pure Kolmogorov turbulence, 2.5 to 3.5 for
+        measured profiles with wings).
     """
     n_telescopes: int = 20
     fiber: str = "18um"
@@ -65,6 +82,10 @@ class Telescope:
     diameter_m: float = 0.726
     fiber_diameter_arcsec: float | None = None
     telescopes_per_input: int | None = 20
+    seeing_arcsec: float | None = None
+    seeing_ref_arcsec: float = 1.0
+    seeing_psf: str = "moffat"
+    moffat_beta: float = 3.5
     _kopt: tuple = field(init=False, default=None, repr=False, compare=False)
     _eta: tuple = field(init=False, default=None, repr=False, compare=False)
 
@@ -91,6 +112,14 @@ class Telescope:
                           "combine='fiber' is a what-if, not a planned LFAST configuration", stacklevel=2)
         if self.fiber_diameter_arcsec is None:
             self.fiber_diameter_arcsec = spec["diameter_arcsec"]
+        if self.seeing_arcsec is not None:
+            self.seeing_arcsec = positive("seeing_arcsec", self.seeing_arcsec)
+        self.seeing_ref_arcsec = positive("seeing_ref_arcsec", self.seeing_ref_arcsec)
+        self.moffat_beta = positive("moffat_beta", self.moffat_beta)
+        if self.moffat_beta <= 1:
+            raise ValueError("moffat_beta must exceed 1 for a normalisable profile")
+        if self.seeing_psf not in ("moffat", "gaussian"):
+            raise ValueError(f"seeing_psf must be 'moffat' or 'gaussian', got {self.seeing_psf!r}")
         s = spec["suffix"]
         self._kopt = (np.load(THROUGHPUT_DIR / "Kopt_wavelength.npy"),
                       np.load(THROUGHPUT_DIR / f"Kopt_value_{s}.npy"))
@@ -159,9 +188,56 @@ class Telescope:
         """Point-source fiber injection efficiency."""
         return np.interp(wavelength_nm, *self._eta)
 
+    # ---- seeing (#14) -------------------------------------------------------
+    def fiber_coupling(self, seeing_arcsec, wavelength_nm=500.0, psf=None):
+        """Fraction of a point source's light inside the fiber for a seeing disc of
+        FWHM ``seeing_arcsec`` at 500 nm, scaled to ``wavelength_nm`` as
+        ``(lambda / 500 nm) ** -0.2``. Geometry only: no telescope diffraction, no
+        focal-ratio degradation, so this is the *relative* seeing dependence.
+        """
+        seeing = np.asarray(seeing_arcsec, float)
+        if not np.all(np.isfinite(seeing)) or np.any(seeing <= 0):
+            raise ValueError(f"seeing_arcsec must be > 0, got {seeing_arcsec!r}")
+        fwhm = seeing * (np.asarray(wavelength_nm, float) / 500.0) ** -0.2
+        r = self.fiber_diameter_arcsec / 2.0
+        psf = psf or self.seeing_psf
+        if psf == "gaussian":
+            sigma = fwhm / 2.3548
+            return 1.0 - np.exp(-0.5 * (r / sigma) ** 2)
+        if psf != "moffat":
+            raise ValueError("psf must be 'moffat' or 'gaussian'")
+        b = self.moffat_beta
+        alpha = fwhm / (2.0 * np.sqrt(2.0 ** (1.0 / b) - 1.0))
+        return 1.0 - (1.0 + (r / alpha) ** 2) ** (1.0 - b)
+
+    def implied_seeing_ref(self, wavelength_nm=500.0, psf=None):
+        """Seeing [arcsec at 500 nm] at which the geometric ``fiber_coupling`` equals the
+        shipped ``eta_fib`` at ``wavelength_nm``. If ``eta_fib`` were pure seeing loss this
+        would be the reference seeing of the throughput curves; it is an upper limit,
+        since focal-ratio degradation, alignment and diffraction (1.22 lambda/D = 0.57"
+        at 1650 nm for 0.726 m, growing with wavelength while seeing shrinks) also
+        reduce ``eta_fib``. About 1.5" at 550 nm for the 18 um fiber with the Moffat disc.
+        """
+        from scipy.optimize import brentq
+        target = float(self.eta_fib(wavelength_nm))
+        f = lambda s: float(self.fiber_coupling(s, wavelength_nm, psf=psf)) - target
+        return float(brentq(f, 0.05, 20.0))
+
+    def seeing_factor(self, wavelength_nm):
+        """``fiber_coupling(seeing) / fiber_coupling(seeing_ref)``; 1 when ``seeing_arcsec`` is None."""
+        if self.seeing_arcsec is None:
+            return 1.0
+        return self.fiber_coupling(self.seeing_arcsec, wavelength_nm) / self.fiber_coupling(self.seeing_ref_arcsec, wavelength_nm)
+
+    def plot_fiber_coupling(self, ax=None, seeing=None):
+        """Fraction of light inside the fiber versus seeing, both PSF shapes, with the
+        current and reference seeing marked."""
+        from .plotting import plot_fiber_coupling
+        return plot_fiber_coupling(self, ax=ax, seeing=seeing)
+
     def throughput_point_source(self, wavelength_nm):
-        """Telescope throughput for a point source: ``K_opt``."""
-        return self.kopt(wavelength_nm)
+        """Telescope throughput for a point source: ``K_opt`` times the seeing factor."""
+        return self.kopt(wavelength_nm) * self.seeing_factor(wavelength_nm)
 
     def throughput_extended(self, wavelength_nm):
         """Telescope throughput for a source filling the fiber: ``K_opt / eta_fib``."""
@@ -171,4 +247,6 @@ class Telescope:
         return (f"{self.n_telescopes} x {self.diameter_m:.3f} m telescopes "
                 f"(total area {self.total_area_m2:.2f} m^2, {self.equivalent_diameter_m:.1f} m equivalent), "
                 f"{self.fiber} fiber ({self.fiber_diameter_arcsec:.2f}\" on sky), "
-                f"combine={self.combine}, {self.n_inputs} input(s)")
+                f"combine={self.combine}, {self.n_inputs} input(s)"
+                + (f", seeing {self.seeing_arcsec:g}\" ({self.seeing_psf}, ref {self.seeing_ref_arcsec:g}\")"
+                   if self.seeing_arcsec is not None else ""))

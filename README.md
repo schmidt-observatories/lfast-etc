@@ -46,7 +46,7 @@ LFASTETC("cshell_r43000", telescope=Telescope(n_telescopes=40, fiber="18um"),
          wavelength_min_nm=1081, wavelength_max_nm=1086)
 ```
 
-Everything is per resolution element; SNR per pixel is lower by about `sqrt(pixels_per_resel)`.
+Everything is per resolution element; SNR per pixel is lower by about `sqrt(n_pix)`.
 The bundled sky is grey time (moon up), so faint-end numbers are 0.3-0.5 mag pessimistic for
 dark time. The docs (`docs/`, build with `make html`, or hosted on Read the Docs once the project is connected) have a quick start, the concepts, every
 preset, the physics and its known limitations, and a plot gallery.

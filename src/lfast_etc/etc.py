@@ -7,7 +7,7 @@ Per-bin logic (identical to the reference LFAST ETC notebook, 2026-10-12):
 * ``N_star`` is the total stellar electron rate [e-/s] inside one resolution
   element, summed over the whole array.
 * ``N_sky`` is the sky electron rate per *pixel* [e-/s/pix].
-* With ``n_pix`` pixels per resel, dark current ``D`` [e-/s/pix], read noise
+* With ``n_pix`` pixels per resel (dispersion width x fiber-image height), dark current ``D`` [e-/s/pix], read noise
   ``RN`` [e-/pix] and ``n_exp`` reads over a total time ``t`` (Howell 2006)::
 
       SNR = N_star t / sqrt( N_star t + n_pix (N_sky + D) t + n_pix n_exp RN^2 )
@@ -126,7 +126,7 @@ class ETCResult:
         import matplotlib.pyplot as plt
         if ax is None:
             _, ax = plt.subplots(figsize=(9, 4))
-        ax.plot(self.wavelength, self.n_star / self.n_pix, lw=0.8, label="star (per pixel)")
+        ax.plot(self.wavelength, self.n_star / self.n_pix, lw=0.8, label="star (mean per pixel in aperture)")
         ax.plot(self.wavelength, self.n_sky_pix, lw=0.8, label="sky (per pixel)")
         ax.axhline(self.dark_pix, color="0.4", ls="--", label="dark")
         ax.set_yscale("log")
@@ -250,7 +250,8 @@ class LFASTETC:
     # ---- fixed (source-independent) pieces ----------------------------------
     @property
     def n_pix(self):
-        return self.instrument.pixels_per_resel
+        """Extraction aperture per resel: dispersion width x fiber-image height (#13)."""
+        return self.instrument.n_pix
 
     @property
     def _n_detector(self):
@@ -329,13 +330,16 @@ class LFASTETC:
         valid = r["n_star"] > 0
         t = np.where(valid, np.broadcast_to(np.asarray(t, float), self.wavelength.shape), np.nan)
         snr = np.where(valid, np.broadcast_to(np.asarray(snr, float), self.wavelength.shape), np.nan)
-        # ponytail: peak pixel = uniform share of the resel on the most heavily
-        # loaded detector; a real LSF peaks higher. The rates in ``r`` are
-        # whole-array, so scale to the brightest input's share of the telescopes
-        # (a full 20-group for N=21, not N/2: #36).
+        # Peak pixel: the resel's star + sky light times the profile's peak
+        # fraction (#19; 1/n_pix for profile="uniform"), image centred on a pixel
+        # (the maximum for one resel; a continuum source sums neighbouring resels
+        # along the dispersion, which is ~5% lower for the top hat and ~10% higher
+        # for a Gaussian), on the most heavily
+        # loaded detector. The rates in ``r`` are whole-array, so scale to the
+        # brightest input's share of the telescopes (a full 20-group for N=21: #36).
         tel = self.telescope
         share = tel.telescopes_on_brightest_input / tel.n_telescopes
-        peak = ((r["n_star"] / r["n_pix"] + r["n_sky_pix"]) * share
+        peak = ((r["n_star"] + r["n_sky_pix"] * r["n_pix"]) * self.instrument.peak_fraction * share
                 + self.instrument.dark_current) * t / n_exp
         with np.errstate(invalid="ignore"):
             saturated = peak > self.instrument.full_well

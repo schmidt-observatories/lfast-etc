@@ -169,7 +169,7 @@ def make_plots(etc, res, mode):
 
     src2 = ColumnDataSource(dict(w=w, star=res.n_star[sl] / res.n_pix, sky=res.n_sky_pix[sl]))
     p2 = _fig("Electron rates per pixel", "e- / s / pixel")
-    rstar = p2.line("w", "star", source=src2, color=PURPLE, line_width=1.5, legend_label="star")
+    rstar = p2.line("w", "star", source=src2, color=PURPLE, line_width=1.5, legend_label="star (mean per pixel)")
     rsky = p2.line("w", "sky", source=src2, color=TEAL, line_width=1.5, legend_label="sky")
     dark = max(res.dark_pix, 1e-12)
     p2.line([w.min(), w.max()], [dark, dark], color=GREY, line_dash="dashed", legend_label="dark")

@@ -14,15 +14,17 @@ wavelength_min_nm = 1080.0
 wavelength_max_nm = 1750.0
 resolving_power = 43000.0
 pixels_per_resel = 2.5    # dispersion direction only: the IRTF 0.5" slit value at R=43,000
+fiber_image_px = 6.0      # spatial height: the slit narrows the dispersion direction only (native fiber image, cshell_r18000)
 spectrograph_efficiency = 0.1
 slit_throughput = 0.5    # PLACEHOLDER
-qe = 0.8               # placeholder flat QE
-dark_current = 5.0     # e-/s/pix: IRTF "dark + background" below 2.5 um (was 0.5, the 1993 paper's
-                       # dark alone for the NICMOS-3 array); the fiber-fed LFAST feed may do better
-read_noise = 22.0      # e-/pix per read with Fowler sampling, reads >= 8 s (reference notebook; Greene
-                       # et al. 1993 multiple-sampling target of 20-25 e-). The IRTF page quotes ~30 e-
-                       # for the 256x256 InSb without stating the sampling mode; use
-                       # Instrument.from_preset(..., read_noise=30.0) for that case.
-full_well = 80000.0    # placeholder
-min_exptime = 8.0
+qe = 0.8               # flat; ~80% for 1-3 um (Brown et al. 2026, Table 1)
+dark_current = 0.5     # e-/s/pix: Hughes 256x256 SBRC InSb at 30 K, IRTF measurement (Brown et al. 2026,
+                       # SPIE 14149, Table 1; input/literature/141499Z.pdf). The IRTF page's 5 e-/s was the
+                       # K-band background through the IRTF (100 ADU in 240 s at 11 e-/ADU), not the detector.
+read_noise = 22.0      # e-/pix per read at 6 Fowler samples; 55 e- single-sample, ~19 e- at the default
+                       # 8 samples (Brown et al. 2026, Table 1). The IRTF page's ~30 e- is a sensitivity-
+                       # formula value with no sampling mode stated.
+full_well = 55000.0    # e-/pix, "1% linear" well at the default -325 mV bias; 92,400 / 170,000 / 234,000 e- at
+                       # -500 / -800 / -1000 mV (Brown et al. 2026, Table 1)
+min_exptime = 8.0      # reference notebook: time for the 8-sample Fowler read; single sample >= 76 ms
 free_spectral_range_frac = 2.5e-3
