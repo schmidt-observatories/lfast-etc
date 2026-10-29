@@ -1,8 +1,8 @@
 Changelog
 ==
 
-Unreleased
-----------
+0.1.1 (2026-10-29)
+------------------
 
 Code review, notebooks and documentation pass (see the GitHub issues #2 to #30 for the full list).
 
