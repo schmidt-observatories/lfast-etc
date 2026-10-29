@@ -112,7 +112,7 @@ With one combiner input per 20-telescope array, the light per detector pixel is 
 array and does not grow with the number of arrays, so the bright limit is the same at 20, 200
 and 1720 telescopes. An idealised single combiner would instead saturate $N/20$ times sooner.
 The table gives the brightest star for which a 1 s (Bench) or 8 s (CSHELL, Fowler minimum) read
-stays below 80% of full well. The full wells are placeholders.
+stays below 80% of full well (STA1 87.5 ke$^-$ for the Bench, 40 ke$^-$ for CSHELL).
 """),
 code("""for preset, band, teff, kw, tmin in (("bench_r1800", "V", 5800, {}, 1.0), ("cshell_r18000", "H", 4500, dict(wavelength_min_nm=1550, wavelength_max_nm=1560), 8.0)):
     row = []
@@ -411,7 +411,7 @@ md("""
 ## Exoplanet-host chromospheric monitoring
 
 Ca II H and K are outside the Bench window; H$\\alpha$ is inside it. SNR per resel at H$\\alpha$ in
-a 60 s exposure for three typical hosts. The bright K dwarf saturates the placeholder full well
+a 60 s exposure for three typical hosts. The bright K dwarf saturates the STA1 full well
 with 20 telescopes already, so it would need shorter reads.
 """),
 code("""hosts = {"V=8 K dwarf": (4800, 8), "V=11 M dwarf": (3300, 11), "V=14 M dwarf": (3300, 14)}
@@ -508,7 +508,7 @@ for n in (20, 200, 1720):
         ne = np.nansum(r.n_star*r.exptime)        # source electrons across the 40 A window
         row.append(f"H={h}: {2.998e5/(Q*np.sqrt(ne)):7.2f} km/s")
     print(f"N={n:5d} (15 min, photon-only, Q assumed): " + "  ".join(row))"""),
-md("## Bright end: reads needed for a J = 3 star in 300 s (placeholder 80 ke- full well)"),
+md("## Bright end: reads needed for a J = 3 star in 300 s (40 ke- full well)"),
 code("""for n in (20, 200, 1720):
     print(f"N={n:5d}: reads = {he(n, 'cshell_r18000').reads_needed(Source.blackbody(4800, 3, 'J'), 300)}")"""),
 ]

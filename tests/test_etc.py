@@ -150,6 +150,7 @@ def test_cshell_presets_follow_the_irtf_detector_and_dispersion():
         assert ins.pixels_per_resel == npix
         assert ins.pixels_per_resel == pytest.approx(2.5 * 43000 / ins.resolving_power, rel=0.01)
         assert (ins.read_noise, ins.dark_current, ins.min_exptime) == (22.0, 5.0, 8.0)   # 22 e-: Fowler-sampled
+        assert ins.full_well == 40000.0        # IRTF page: 1000 e-/s x 20 s 'fills the wells to half capacity'
         assert ins.free_spectral_range_frac == 2.5e-3 and ins.spectrograph_efficiency == 0.1
 
 
@@ -483,6 +484,11 @@ def test_peak_fraction_by_profile():
     assert Instrument.from_preset("bench_r1800", profile="uniform").peak_fraction == pytest.approx(1 / 2.2 ** 2)
     # a big disc: the peak pixel holds about 1 / (pi a b) of the light
     assert peak_pixel_fraction(12, 12, "tophat") == pytest.approx(4 / (np.pi * 144), rel=0.15)
+    # a wide Gaussian must not be truncated by the render grid: erf^2 of the central pixel
+    from scipy.special import erf
+    sig = 12 / 2.3548
+    assert peak_pixel_fraction(12, 12, "gaussian") == pytest.approx(erf(0.5 / (sig * np.sqrt(2))) ** 2, rel=2e-3)
+    assert not Instrument.from_preset("bench_r1800").pixel_image().flags.writeable
     # a sharp Gaussian: nearly everything lands in one pixel
     assert peak_pixel_fraction(0.3, 0.3, "gaussian") > 0.9
     with pytest.raises(ValueError):
@@ -512,6 +518,8 @@ def test_seeing_scales_the_point_source_path_only():
     assert ref.fiber_coupling(0.01, 550.0) == pytest.approx(1.0, abs=1e-3)   # all the light inside the fiber
     assert ref.fiber_coupling(1.0, 550.0, psf="gaussian") != ref.fiber_coupling(1.0, 550.0, psf="moffat")
     assert bad.seeing_factor(1600.0) > bad.seeing_factor(550.0)                 # seeing improves with wavelength
+    s_ref = ref.implied_seeing_ref(550.0)
+    assert 1.3 < s_ref < 1.7 and ref.fiber_coupling(s_ref, 550.0) == pytest.approx(ref.eta_fib(550.0), rel=1e-6)
     src = Source.blackbody(5800, 15)
     e0, e2 = LFASTETC("bench_r1800"), LFASTETC("bench_r1800", telescope=bad)
     assert np.nanmedian(e2.snr(src, 100).snr) < np.nanmedian(e0.snr(src, 100).snr)
@@ -530,3 +538,9 @@ def test_profile_and_seeing_plots_return_axes():
     ax2 = Telescope(seeing_arcsec=1.5).plot_fiber_coupling()
     assert len(ax2.get_lines()) >= 2
     plt.close("all")
+
+def test_bench_presets_use_the_sta1_full_well():
+    """WIYN STA1 CCD page: full well 87,500 e-, 1% linearity to 63,000 e-, 3.7 e- read noise at medium gain."""
+    for name in (n for n in list_instruments() if n.startswith("bench_")):
+        ins = Instrument.from_preset(name)
+        assert ins.full_well == 87500.0 and ins.read_noise == 3.7

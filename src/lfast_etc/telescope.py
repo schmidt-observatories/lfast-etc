@@ -66,7 +66,9 @@ class Telescope:
         wavelength as ``(lambda / 500 nm) ** -0.2``.
     seeing_ref_arcsec : float
         Seeing assumed by the shipped ``K_opt``/``eta_fib`` curves (Choi et al.
-        2026). 1.0 arcsec is a placeholder until the reference is confirmed.
+        2026). 1.0 arcsec is a placeholder until the reference is confirmed;
+        ``implied_seeing_ref()`` (about 1.5" at 550 nm) is the value at which the
+        geometric coupling alone would explain the shipped ``eta_fib``.
     seeing_psf : {"moffat", "gaussian"}
         Seeing-disc shape; Moffat with ``moffat_beta`` by default.
     moffat_beta : float
@@ -206,6 +208,19 @@ class Telescope:
         b = self.moffat_beta
         alpha = fwhm / (2.0 * np.sqrt(2.0 ** (1.0 / b) - 1.0))
         return 1.0 - (1.0 + (r / alpha) ** 2) ** (1.0 - b)
+
+    def implied_seeing_ref(self, wavelength_nm=500.0, psf=None):
+        """Seeing [arcsec at 500 nm] at which the geometric ``fiber_coupling`` equals the
+        shipped ``eta_fib`` at ``wavelength_nm``. If ``eta_fib`` were pure seeing loss this
+        would be the reference seeing of the throughput curves; it is an upper limit,
+        since focal-ratio degradation, alignment and diffraction (1.22 lambda/D = 0.57"
+        at 1650 nm for 0.726 m, growing with wavelength while seeing shrinks) also
+        reduce ``eta_fib``. About 1.5" at 550 nm for the 18 um fiber with the Moffat disc.
+        """
+        from scipy.optimize import brentq
+        target = float(self.eta_fib(wavelength_nm))
+        f = lambda s: float(self.fiber_coupling(s, wavelength_nm, psf=psf)) - target
+        return float(brentq(f, 0.05, 20.0))
 
     def seeing_factor(self, wavelength_nm):
         """``fiber_coupling(seeing) / fiber_coupling(seeing_ref)``; 1 when ``seeing_arcsec`` is None."""

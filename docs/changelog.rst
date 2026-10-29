@@ -1,5 +1,5 @@
 Changelog
-=========
+==
 
 Unreleased
 ----------
@@ -63,6 +63,10 @@ Changed
 * ``Telescope(seeing_arcsec=...)`` scales the point-source throughput with a Moffat (or Gaussian)
   seeing disc integrated over the fiber, relative to a placeholder 1.0 arcsec reference (#14);
   ``fiber_coupling()`` and ``plot_fiber_coupling()`` expose it. The sky path is unchanged.
+
+* Full wells are sourced instead of placeholders: 87,500 e- for every Bench mode (WIYN STA1
+  CCD page, 1% linearity to 63,000 e-) and 40,000 e- for CSHELL (IRTF page: 20,000 e- "fills the
+  wells to half capacity"). Saturation flags, ``reads_needed`` and the web markers follow.
 * Documentation theme is ``pydata_sphinx_theme`` (as for the WCC ETC).
 * The duplicated wavelength-selector and box-band code paths are merged.
 

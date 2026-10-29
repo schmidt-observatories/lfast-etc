@@ -28,9 +28,10 @@ def pixel_image(width_px, height_px, profile="tophat"):
         raise ValueError(f"profile must be one of {PROFILES}, got {profile!r}")
     w, h = positive("width_px", width_px), positive("height_px", height_px)
     if profile == "uniform":
-        n = w * h
-        return np.full((1, 1), 1.0 / n)
-    half = int(np.ceil(max(w, h) / 2 + 3 * max(BLUR_SIGMA_PX, 0.5))) + 1
+        out = np.full((1, 1), 1.0 / (w * h)); out.setflags(write=False)
+        return out
+    margin = 3 * max(w, h) / 2.3548 if profile == "gaussian" else 3 * max(BLUR_SIGMA_PX, 0.5)   # Gaussian wings need room
+    half = int(np.ceil(max(w, h) / 2 + margin)) + 1
     x = (np.arange(-half * _SUB, half * _SUB) + 0.5) / _SUB - 0.5    # sub-pixel centres; pixel k spans [k-0.5, k+0.5)
     xx, yy = np.meshgrid(x, x)
     if profile == "tophat":
@@ -42,7 +43,9 @@ def pixel_image(width_px, height_px, profile="tophat"):
         img = np.exp(-0.5 * ((xx / sx) ** 2 + (yy / sy) ** 2))
     img /= img.sum()
     n = 2 * half
-    return img.reshape(n, _SUB, n, _SUB).sum(axis=(1, 3))
+    out = img.reshape(n, _SUB, n, _SUB).sum(axis=(1, 3))
+    out.setflags(write=False)                       # cached: callers must not mutate it
+    return out
 
 
 def peak_pixel_fraction(width_px, height_px, profile="tophat"):
@@ -89,6 +92,8 @@ class Instrument:
         Spectrograph optical throughput (``S_opt``), excluding slit losses and QE.
     slit_throughput : float
         Extra multiplicative throughput for slit modes (1 for the bare fiber).
+        Applied to the sky as well as the source: the slit clips the uniformly
+        illuminated fiber face, so both lose the same fraction.
     qe : float or callable
         Detector quantum efficiency.
     dark_current : float

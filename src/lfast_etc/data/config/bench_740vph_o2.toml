@@ -13,6 +13,13 @@ spectrograph_efficiency = 0.300  # no peak efficiency listed for the VPH grating
 slit_throughput = 1.0
 qe = 0.75              # placeholder flat QE, as bench_r1800
 dark_current = 3.0e-4  # e-/s/pix
-read_noise = 3.7       # e-/pix
-full_well = 100000.0   # placeholder
+# Detector: WIYN STA1 CCD (wiyn.org/Instruments/STA1vsT2KA.html), 18-bit ADC, three gain modes:
+#   mode     e-/DN   read noise   ADC limit     binding limit
+#   high     0.219   3.2 e-        57,400 e-    ADC (below the 63,000 e- 1% linearity point)
+#   medium   0.438   3.7 e-       114,800 e-    full well 87,500 e-
+#   low      0.876   4.3 e-       229,600 e-    full well 87,500 e-
+# This preset assumes MEDIUM gain (read_noise 3.7, full_well 87,500). For high gain use
+# Instrument.from_preset(..., read_noise=3.2, full_well=57400).
+read_noise = 3.7       # e-/pix, STA1 medium gain
+full_well = 87500.0    # e-/pix, STA1 full well (medium gain; 1% linearity to 63,000 e-)
 min_exptime = 1.0

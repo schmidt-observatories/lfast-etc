@@ -126,7 +126,7 @@ class ETCResult:
         import matplotlib.pyplot as plt
         if ax is None:
             _, ax = plt.subplots(figsize=(9, 4))
-        ax.plot(self.wavelength, self.n_star / self.n_pix, lw=0.8, label="star (per pixel)")
+        ax.plot(self.wavelength, self.n_star / self.n_pix, lw=0.8, label="star (mean per pixel in aperture)")
         ax.plot(self.wavelength, self.n_sky_pix, lw=0.8, label="sky (per pixel)")
         ax.axhline(self.dark_pix, color="0.4", ls="--", label="dark")
         ax.set_yscale("log")
@@ -331,7 +331,10 @@ class LFASTETC:
         t = np.where(valid, np.broadcast_to(np.asarray(t, float), self.wavelength.shape), np.nan)
         snr = np.where(valid, np.broadcast_to(np.asarray(snr, float), self.wavelength.shape), np.nan)
         # Peak pixel: the resel's star + sky light times the profile's peak
-        # fraction (#19; 1/n_pix for profile="uniform") on the most heavily
+        # fraction (#19; 1/n_pix for profile="uniform"), image centred on a pixel
+        # (the maximum for one resel; a continuum source sums neighbouring resels
+        # along the dispersion, which is ~5% lower for the top hat and ~10% higher
+        # for a Gaussian), on the most heavily
         # loaded detector. The rates in ``r`` are whole-array, so scale to the
         # brightest input's share of the telescopes (a full 20-group for N=21: #36).
         tel = self.telescope
