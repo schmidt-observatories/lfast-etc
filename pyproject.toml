@@ -20,7 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 web = ["flask>=3", "bokeh>=3.4"]
 docs = [
-  "sphinx>=7", "sphinx-rtd-theme>=2.0", "nbsphinx", "sphinx-design",
+  "sphinx>=7", "sphinx-rtd-theme>=2.0", "nbsphinx",
   "sphinx-copybutton", "myst-parser", "ipykernel",
 ]   # plus the pandoc binary on PATH
 dev = ["pytest", "nbformat", "nbclient", "ipykernel", "jupyter"]

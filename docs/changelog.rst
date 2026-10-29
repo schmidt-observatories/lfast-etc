@@ -53,6 +53,9 @@ Added
 
 Changed
 
+* Docs: the landing and notebooks pages follow the ``wcc-etc`` layout (inline SOS logo, prose
+  overview, visible table of contents) instead of ``sphinx-design`` card grids, which is no longer a
+  docs dependency. The logo lives in ``docs/_static/``.
 * Line-spread function and detector pixels: ``LFASTETC(lsf="gaussian"|"tophat"|None,
   oversample=8)``. The source, sky and the resolved SkyCalc transmission (``K_opt``'s 1 nm
   atmosphere divided out) are evaluated on a fine working grid, convolved with the LSF (Gaussian
