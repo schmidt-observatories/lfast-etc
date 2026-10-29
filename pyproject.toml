@@ -41,6 +41,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "lfast_etc" = [
   "data/throughput/*.npy",
+  "data/throughput/*.npz",
   "data/sky/*.fits",
   "data/config/*.toml",
   "web/templates/*.html",
