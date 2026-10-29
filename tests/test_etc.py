@@ -544,3 +544,61 @@ def test_bench_presets_use_the_sta1_full_well():
     for name in (n for n in list_instruments() if n.startswith("bench_")):
         ins = Instrument.from_preset(name)
         assert ins.full_well == 87500.0 and ins.read_noise == 3.7
+
+
+# ---- Choi et al. 2026 throughput cascade and calibrated seeing ----------------
+def test_throughput_cascade_multiplies_to_kopt():
+    from lfast_etc.telescope import CHOI_STAGES
+    tel = Telescope(seeing_arcsec=1.5)
+    w = np.array([450.0, 550.0, 700.0, 1000.0, 1250.0, 1650.0])
+    c = tel.throughput_cascade(w)
+    assert [s for s, _ in CHOI_STAGES] and all(0 < v <= 1 for _, v in CHOI_STAGES)
+    stages = c["stages"]; names = [s["name"] for s in stages]
+    assert names[0].startswith("atmosphere") and any("injection" in n for n in names) and any("seeing" in n for n in names)
+    for s in stages:
+        assert np.all(s["transmission"] >= 0) and np.all(s["transmission"] <= 1.0001)
+    np.testing.assert_allclose(c["cumulative"][-1], tel.throughput_point_source(w), rtol=1e-12)
+    # the derived residual (mirror + PFC + fiber attenuation) is a plausible 0.6-0.8 in the mid band
+    res = [s for s in stages if "mirror" in s["name"]][0]["transmission"]
+    assert np.all((res[1:5] > 0.6) & (res[1:5] < 0.8))
+    # sky path: no injection, no seeing
+    cs = tel.throughput_cascade(w, path="sky")
+    np.testing.assert_allclose(cs["cumulative"][-1], tel.throughput_extended(w), rtol=1e-12)
+    assert not any("injection" in s["name"] for s in cs["stages"])
+    # scalar wavelength returns floats
+    c1 = tel.throughput_cascade(550.0)
+    assert isinstance(c1["cumulative"][-1], float)
+
+
+def test_etc_cascade_adds_instrument_and_plots():
+    import matplotlib; matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    etc = LFASTETC("bench_r1800", telescope=Telescope(seeing_arcsec=1.2))
+    c = etc.throughput_cascade()
+    names = [s["name"] for s in c["stages"]]
+    assert any("spectrograph" in n for n in names) and any("QE" in n for n in names)
+    np.testing.assert_allclose(c["cumulative"][-1] * etc.telescope.area_m2 * 20 * etc.delta_lambda,
+                               etc.throughputs()["star"], rtol=1e-12)
+    ax = etc.plot_throughput_cascade()
+    assert len(ax.get_lines()) >= 8
+    plt.close("all")
+
+
+def test_choi_seeing_model_is_calibrated_and_gentler_than_moffat():
+    ref = Telescope()                                   # default seeing_psf is "choi"
+    assert ref.seeing_psf == "choi"
+    assert Telescope(seeing_arcsec=1.0).seeing_factor(550.0) == pytest.approx(1.0, abs=1e-6)
+    t15 = Telescope(seeing_arcsec=1.5)
+    f_choi = t15.seeing_factor(550.0)
+    f_moffat = Telescope(seeing_arcsec=1.5, seeing_psf="moffat").seeing_factor(550.0)
+    assert 0.65 < f_choi < 0.78 and f_choi > f_moffat         # the non-seeing blur softens the seeing dependence
+    s = np.array([0.6, 1.0, 1.5, 2.0, 2.5])
+    f = np.array([Telescope(seeing_arcsec=x).seeing_factor(800.0) for x in s])
+    assert np.all(np.diff(f) < 0)                               # monotonic in seeing
+    assert Telescope(seeing_arcsec=2.0).seeing_factor(1650.0) > Telescope(seeing_arcsec=2.0).seeing_factor(550.0)
+    # the 50 um fiber barely cares about seeing
+    with pytest.warns(UserWarning):
+        t50 = Telescope(fiber="50um", seeing_arcsec=2.0, combine="fiber")
+    assert 0.75 < t50.seeing_factor(550.0) < 0.95 and t50.seeing_factor(550.0) > Telescope(seeing_arcsec=2.0).seeing_factor(550.0) + 0.25
+    # out-of-table seeing is clamped, not extrapolated
+    assert Telescope(seeing_arcsec=5.0).seeing_factor(550.0) == pytest.approx(Telescope(seeing_arcsec=3.0).seeing_factor(550.0))

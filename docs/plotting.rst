@@ -86,6 +86,18 @@ with the reference and current seeing marked (:ref:`seeing`).
     Telescope(seeing_arcsec=1.5).plot_fiber_coupling(ax=axes[1])
     fig.tight_layout()
 
+Throughput cascade
+------------------
+
+``etc.plot_throughput_cascade()``: cumulative throughput after each stage of the Choi et al.
+(2026) budget and the instrument (:ref:`budget`); ``path="sky"`` drops the fiber injection.
+
+.. plot::
+
+    from lfast_etc import LFASTETC, Telescope
+    etc = LFASTETC("bench_r1800", telescope=Telescope(seeing_arcsec=1.5))
+    etc.plot_throughput_cascade()
+
 Sensitivity plots
 -----------------
 
