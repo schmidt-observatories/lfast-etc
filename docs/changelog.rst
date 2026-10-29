@@ -1,6 +1,26 @@
 Changelog
 ==
 
+Unreleased
+----------
+
+Added
+
+* ``Instrument.setting_window(center_nm)``: the ``(lo, hi)`` range one setting covers, one free
+  spectral range for CSHELL and the full range otherwise. The notebooks use it to restrict CSHELL
+  grids to one echelle setting.
+* ``notebooks`` extra (``pandas``, ``jinja2``) for the result tables in the example notebooks;
+  also in ``dev``.
+
+Changed
+
+* Notebooks 01-04, 06 and 07: science and narrative updates (Thomas Wevers): instrument-mode table,
+  single-setting CSHELL examples, 10-min per-target overhead and single-input array trade in 03,
+  10,000 K SN Ia SED, Argus reference depths, afterglow time-to-redshift and a 60-min array trade in
+  04, formatted tables and interpretation in 06 and 07. All ten notebooks rebuilt on the 0.1.1
+  library (full extraction aperture, Brown et al. CSHELL detector, LSF) and the quoted numbers
+  re-derived from the new outputs.
+
 0.1.1 (2026-10-29)
 ------------------
 
@@ -91,7 +111,6 @@ Changed
 
 * Full wells are sourced instead of placeholders: 87,500 e- for every Bench mode (WIYN STA1
   CCD page, 1% linearity to 63,000 e-) and, for CSHELL, 55,000 e- (Brown et al. 2026; superseding the 40,000 e- inferred from the IRTF page). Saturation flags, ``reads_needed`` and the web markers follow.
-* Documentation theme is ``pydata_sphinx_theme`` (as for the WCC ETC).
 * The duplicated wavelength-selector and box-band code paths are merged.
 
 0.1.0 (2026-10-21)

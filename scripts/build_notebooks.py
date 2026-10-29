@@ -64,13 +64,16 @@ plot what the extracted spectrum would look like.
 The spectrum is cut into bins one resolution element (resel) wide, $\\delta\\lambda = \\lambda/R$.
 In each bin the source delivers $N_*$ electrons per second (summed over the whole array), the sky
 delivers $N_{sky}$ electrons per second per pixel, and the resel is spread over $n_{pix}$ detector
-pixels (2.2 for the Bench, 2.5 for CSHELL). With dark current $D$, read noise $RN$ and a total
+pixels: the pixels per resel along the dispersion direction times the height of the fiber image on
+the detector (2.2 x 2.2 = 4.8 for the Bench; 6 x 6 = 36 for CSHELL at R = 18,000, whose fiber
+image is 6 px high). With dark current $D$, read noise $RN$ and a total
 exposure $t$ split into $n_{exp}$ reads, the SNR per resel is (Howell 2006)
 
 $$\\mathrm{SNR} = \\frac{N_* t}{\\sqrt{N_* t + n_{pix}(N_{sky} + D)\\,t + n_{pix}\\, n_{exp}\\, RN^2}}.$$
 
 Survey papers often quote SNR per pixel. In the photon-limited regime that is lower by about
-$\\sqrt{n_{pix}}$, so SNR 30 per resel is roughly SNR 20 per pixel on the Bench. Keep that
+$\\sqrt{2.2}$, the pixels per resel along the dispersion direction, so SNR 30 per resel is roughly
+SNR 20 per pixel on the Bench. Keep that
 conversion in mind when you compare with the literature.
 """),
 code(PREAMBLE),
@@ -90,8 +93,9 @@ md("""## Available instrument modes
 Each instrument mode is a preset: a set of spectrograph and detector parameters loaded by name. The
 table lists the bundled presets. *One setting* is the wavelength range a single exposure covers:
 the whole range for the Bench, but only one free spectral range (~2.5e-3 $\\lambda$) for CSHELL, so
-a CSHELL observation covers ~3 nm at 1.08 um and ~4 nm at 1.55 um (see below). Values marked as
-placeholders in the preset descriptions (CSHELL slit losses, full wells) are not yet measured."""),
+a CSHELL observation covers ~3 nm at 1.08 um and ~4 nm at 1.55 um (see below). `n_pix` is the
+extraction aperture per resel (dispersion pixels times the fiber-image height). The CSHELL slit
+throughputs at R = 21,500 and 43,000 and the flat QEs are placeholders."""),
 code("""rows = {}
 for name in list_instruments():
     ins = Instrument.from_preset(name)
@@ -99,7 +103,7 @@ for name in list_instruments():
     rows[name] = {"description": ins.description, "R": int(ins.resolving_power),
                   "range (nm)": f"{ins.wavelength_min_nm:.0f}-{ins.wavelength_max_nm:.0f}",
                   "one setting at centre (nm)": round(hi - lo, 1),
-                  "efficiency": ins.efficiency, "QE": ins.qe, "pix/resel": ins.pixels_per_resel,
+                  "efficiency": ins.efficiency, "QE": ins.qe, "pix/resel": ins.pixels_per_resel, "n_pix": ins.n_pix,
                   "read noise (e-)": ins.read_noise, "dark (e-/s/pix)": ins.dark_current,
                   "min exptime (s)": ins.min_exptime}
 modes = pd.DataFrame(rows).T.rename_axis("preset")
@@ -218,16 +222,21 @@ code("""low_rn = cs.replace(read_noise=5.0)
 r2 = LFASTETC(low_rn, wavelength_min_nm=lo, wavelength_max_nm=hi).snr(kstar, exptime=300)
 for label, rr, ins in (("preset", r, cs), ("override", r2, low_rn)):
     print(f"{label:8s}: read noise {ins.read_noise:4.0f} e-  ->  median SNR/resel = {np.nanmedian(rr.snr):.1f}")"""),
-md("""At H = 9 the star's own photon noise dominates, so the gain is small (~8%); for fainter
-targets, where read noise is a larger share of the noise, the same change is worth much more."""),
+md("""At H = 9 the star gives ~6600 e$^-$ per resel in 300 s, but the read noise, 22 e$^-$ on each of
+the 36 pixels of the extraction aperture, adds a variance of ~17,000 e$^{-2}$, more than the star's
+own photon noise. Lowering it to 5 e$^-$ therefore raises the SNR by ~50%; for fainter targets,
+where read noise is an even larger share of the noise, the gain is larger still."""),
 md("""
 ## Scaling the array
 
-The number of telescopes is an ordinary parameter. With the 18 um fibers every telescope feeds the
-same spectrograph input (`combine="fiber"`): signal and sky per pixel grow with $N$ while the
-detector noise is paid once. The 50 um fiber does not go through the combiner, so each telescope
-produces its own spectrum that is co-added afterwards (`combine="independent"`), and the SNR
-grows as $\\sqrt{N}$. For a faint star the fiber mode wins once read noise matters.
+The number of telescopes is an ordinary parameter. With the 18 um fibers the telescopes of one
+array feed the same spectrograph input through the combiner (`combine="fiber"`): signal and sky
+per pixel grow with $N$ while the detector noise is paid once per input. Beyond 20 telescopes the
+ETC assumes one combiner input per 20-telescope array (`telescopes_per_input=20`, the default), so
+100 and 200 telescopes are 5 and 10 inputs, read out separately and co-added. The 50 um fiber does
+not go through the combiner, so each telescope produces its own spectrum that is co-added
+afterwards (`combine="independent"`), and the SNR grows as $\\sqrt{N}$. For a faint star the fiber
+mode wins once read noise matters.
 """),
 code("""faint_source = Source.blackbody(5800, mag=19, band="V")
 snr_faint = 10
@@ -240,7 +249,7 @@ for n in (20, 100, 200):
         row[f"{fiber} time (min)"] = round(float(np.nanmedian(e.exptime(faint_source, snr=snr_faint).exptime))/60, 1)
     rows[n] = row
 pd.DataFrame(rows).T.rename_axis("N telescopes").astype({"18um inputs": int, "50um inputs": int})"""),
-md("""With the 18 um fiber, 5x more telescopes cut the time by ~4x and 10x by ~7x. Co-adding the
+md("""With the 18 um fiber, 5x more telescopes cut the time by ~4x and 10x by ~6x. Co-adding the
 inputs raises the SNR by $\\sqrt{n_{inputs}}$ at fixed time; that is worth a factor $n_{inputs}$ in
 time only when the sky dominates the noise, and less here because read noise still contributes for
 this faint star. The 50 um fiber is slower at every N: it collects more sky per telescope and pays
@@ -279,7 +288,7 @@ md("""
   which wavelengths does the sky take over?
 * Set `n_exp=10` in the SNR call. How much SNR does the extra read noise cost at V = 15, and at
   V = 19?
-* Replace `"bench_r1800"` with `"bench_316_63p4_o9"` (the R ~ 23,000 H$\\alpha$ mode). What
+* Replace `"bench_r1800"` with `"bench_316_63p4_o9"` (the R ~ 31,000 H$\\alpha$ mode). What
   happens to the exposure time for SNR 50 and why?
 """),
 ])
@@ -378,8 +387,9 @@ ax.legend(fontsize=8); ax.set_title("Bench R~1800, median over 500-650 nm", font
 equivalent_diameter_axis(ax);"""),
 md("""
 The top axis converts the number of telescopes into the diameter of a single telescope with the
-same collecting area. The same comparison for CSHELL, where the 22 e$^-$ read noise and 5
-e$^-$/s dark-plus-background current are large, shows the fiber combiner mattering more:
+same collecting area. The same comparison for CSHELL, where the 22 e$^-$ read noise and the 0.5
+e$^-$/s dark current, both over a 36-pixel extraction aperture, are large, shows the fiber combiner
+mattering more:
 """),
 code("""fig, ax = plt.subplots(figsize=(7, 4.5))
 for fiber, combine in (("18um", "fiber"), ("18um", "independent"), ("50um", "independent")):
@@ -503,7 +513,7 @@ depth = pd.DataFrame({(label.split()[0], f"SNR {snr_t}"): [bench.limiting_magnit
 depth.round(1)"""),
 md("""With 20 telescopes a G dwarf reaches the ~0.1 dex target at V ~ 16.9 in 15 min and V ~ 18.2 in
 1 h; the ~0.05 dex target stops ~1.8 mag brighter. As before, the three stars differ by at most
-~0.1 mag, and only the SED matters, so the 4500 K column applies equally to K giants.
+~0.2 mag, and only the SED matters, so the 4500 K column applies equally to K giants.
 
 In distance (ignoring extinction), V = 16.9 and 18.2 correspond to ~2.7 and ~4.7 kpc for a G dwarf
 ($M_V \\approx +4.8$), and V = 16.9 and 18.1 to ~19 and ~33 kpc for a K giant
@@ -585,8 +595,8 @@ trade["gain vs N=20 (mag)"] = trade["V_lim (SNR=30, 15 min)"] - trade.loc[20, "V
 trade.round(2)"""),
 md("""The gain (+1.4 mag for 100 telescopes, +2.0 for 200) sits between the two limits. At the
 200-telescope limit (V ~ 18.9) the star and the sky each contribute ~1800 e$^-$ per resel in 15 min,
-while the detector adds only ~30 e$^{-2}$ of variance, so for the Bench the detector noise hardly matters
-either way: feeding each 20-telescope array into its own input instead would cost only ~0.05 mag
+while the detector adds only ~70 e$^{-2}$ of variance, so for the Bench the detector noise hardly matters
+either way: feeding each 20-telescope array into its own input instead would cost only ~0.1 mag
 here. It matters much more for CSHELL, whose read noise is 6x higher.
 
 Caveat: merging 100-200 telescopes into one spectrograph input needs a larger output fiber or a
@@ -598,7 +608,7 @@ md("""
 
 * Move the metric window to the G band (425 to 435 nm) and compare the depth. This is the window
   that matters for carbon-enhanced metal-poor stars.
-* Switch to the `bench_1200_28p7_o2` preset (R ~ 3700 around 400 nm). Does the higher resolution
+* Switch to the `bench_1200_28p7_o2` preset (R ~ 7600 around 400 nm). Does the higher resolution
   pay for itself in exposure time at fixed SNR per resel?
 """),
 ])
@@ -687,7 +697,7 @@ ax.set_title(f"Classification: SNR={SNR_CLASS} per R={R_BIN} bin, {WINDOW[0]}-{W
 
 t_ref = bench.exptime_vs_mag(seds["SN Ia 10,000 K"], list(ARGUS.values()), snr=snr_resel_needed, wavelength=WINDOW)
 print("SN Ia: " + ";  ".join(f"at {txt} depth ({mag}): {t/60:.1f} min" for (txt, mag), t in zip(ARGUS.items(), t_ref)))"""),
-md("""With 20 telescopes a SN Ia-like SED at the Argus 1 minute depth needs about 5 minutes, and one at the
+md("""With 20 telescopes a SN Ia-like SED at the Argus 1 minute depth needs about 7 minutes, and one at the
 15-minute co-add depth needs about an hour, right at the classification budget. The nominal array
 could therefore classify what Argus finds in single epochs and the bright end of its 15-minute co-adds.
 Because transient counts rise towards fainter magnitudes, a large share of the Argus detections
@@ -775,9 +785,9 @@ ax.set_xlabel("Hours after burst (start of exposure)"); ax.set_ylabel("Exposure 
 ax.legend(fontsize=8)
 ax.set_title(f"Afterglow, alpha=1, SNR={SNR_Z} per resel at R=1800, Bench, {N_TEL} telescopes", fontsize=9);"""),
 md("""A bright afterglow (R = 17 at 1 h) gives a redshift in a couple of minutes at one hour and is
-still within an hour's integration up to ~12 h after the burst. An R = 19 afterglow needs to be
+still within an hour's integration up to ~11 h after the burst. An R = 19 afterglow needs to be
 observed within ~2 h of the burst, and an R = 21 afterglow is out of reach of the nominal array except in
-the first ~15 minutes."""),
+the first ~20 minutes."""),
 md("""## Array size trade for TDAMM depth (60 min, classification SNR)
 
 The 20-telescope prototype is the nominal array; 100 and 200 telescopes are two possible upgrades.
@@ -850,7 +860,7 @@ Assumptions, changeable in the first code cell:
   peak depth, so the measured depth is the mean of that profile over the `n_core` window (0.79 at
   R = 43k, 0.59 at R = 18k). Instrumental broadening is not added on top of that.
 * Individual exposures of 300 s, split into reads only if the brightest pixel would saturate
-  (`full_well` from the preset, 40 ke$^-$ inferred from the IRTF page, with an 80% margin).
+  (`full_well` from the preset, the 55 ke$^-$ 1%-linear well of Brown et al. 2026, with an 80% margin).
 * Transit duration 2 h (24 in-transit exposures) and the same out of transit. The real durations
   are 1.8 h for HD 189733 b and 2.7 h for WASP-107 b.
 * Not included, each a 20 to 40% effect: the planet signal sits in the stellar He I line core,
@@ -947,7 +957,8 @@ ax.set_title("CSHELL R=43k, 20 telescopes", fontsize=9);"""),
 md("""
 ## Why read noise and the array size matter here
 
-CSHELL's 22 e$^-$ read noise and 5 e$^-$/s dark-plus-background current are large. With all fibers combined the
+CSHELL's 22 e$^-$ read noise and 0.5 e$^-$/s dark current, over a 15-pixel extraction aperture at
+R = 43k, are large. With all fibers combined the
 detector terms are paid once per exposure; with independent spectra they are paid $N$ times.
 """),
 code("""ns = [5, 10, 20, 40, 80]

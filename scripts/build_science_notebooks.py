@@ -95,16 +95,17 @@ lim_table.index.names = ["case (SNR=10 per resel)", "exposure (s)"]
 lim_table["gain 20->200"] = lim_table["N=200"] - lim_table["N=20"]
 lim_table["gain 20->1720"] = lim_table["N=1720"] - lim_table["N=20"]
 lim_table.style.format("{:.2f}")"""),
-md("""* **Bench.** The gain is largest for short exposures: a V ~ 16.5 star in 60 s gives ~130 e$^-$ per
-  resel against ~14 e$^-$ of sky, so the star dominates and the gain is 1.75 mag (20 -> 200). In
+md("""* **Bench.** The gain is largest for short exposures: a V ~ 16.3 star in 60 s gives ~150 e$^-$ per
+  resel against ~14 e$^-$ of sky, so the star dominates and the gain is 1.6 mag (20 -> 200). In
   1 h at V ~ 19.9 the sky (~820 e$^-$) outweighs the star (~350 e$^-$) and the gain drops to 1.4 mag.
-* **CSHELL.** Detector noise dominates at every exposure (22 e$^-$ read noise and 5 e$^-$/s dark
-  current: in 15 min at the faint limit the star gives ~1800 e$^-$ per resel against ~27,000 e$^-$
-  of dark), so the gain stays at
-  ~1.3 mag (20 -> 200) and ~2.5 mag (20 -> 1720), close to the background-limited value.
-* **Single combiner (dotted).** Feeding all telescopes into one spectrograph would hardly help the
-  Bench (<0.1 mag) but would help CSHELL a lot: ~1.2 mag deeper at 200 telescopes and ~2.3 mag at
-  1720 in 15 min, because its detector noise would then be paid only once."""),
+* **CSHELL.** Detector noise dominates at every exposure (22 e$^-$ read noise and 0.5 e$^-$/s dark
+  current over the 36-pixel extraction aperture: in 15 min at the faint limit the star gives
+  ~1900 e$^-$ per resel against ~16,000 e$^-$ of dark and a read-noise variance of ~17,000 e$^{-2}$),
+  so the gain stays at ~1.3 mag (20 -> 200) and ~2.4 mag (20 -> 1720), close to the
+  background-limited value.
+* **Single combiner (dotted).** Feeding all telescopes into one spectrograph would help the Bench
+  only a little (~0.1 mag) but would help CSHELL a lot: ~1.2 mag deeper at 200 telescopes and
+  ~2.3 mag at 1720 in 15 min, because its detector noise would then be paid only once."""),
 md("""
 ## How the gain is split: source-, sky- and read-noise-limited regimes
 
@@ -129,7 +130,7 @@ With one combiner input per 20-telescope array, the light per detector pixel is 
 array and does not grow with the number of arrays, so the bright limit is the same at 20, 200
 and 1720 telescopes. An idealised single combiner would instead saturate $N/20$ times sooner.
 The table gives the brightest star for which a 1 s (Bench) or 8 s (CSHELL, Fowler minimum) read
-stays below 80% of full well (STA1 87.5 ke$^-$ for the Bench, 40 ke$^-$ for CSHELL).
+stays below 80% of full well (STA1 87.5 ke$^-$ for the Bench, 55 ke$^-$ for CSHELL).
 """),
 code("""bright = {}
 for preset, band, teff, kw, tmin in (("bench_r1800", "V", 5800, {}, 1.0), ("cshell_r18000", "H", 4500, dict(wavelength_min_nm=cs_lo, wavelength_max_nm=cs_hi), 8.0)):
@@ -209,7 +210,7 @@ save(fig, "classification_depth_vs_N.pdf")
 pd.DataFrame({f"N={n}": {exp // 60: depth[exp][n] for exp in depth} for n in SCALES}).rename_axis("exposure (min)").style.format("{:.1f}").set_caption("Classification depth (R mag, SNR=5 per R=300 bin)")"""),
 md("""The nominal array classifies to R ~ 21.1 in 30 min and R ~ 21.5 in 60 min, i.e. down to the Argus
 15-minute co-add depth only with 1 hr exposure time. Ten arrays (200 telescopes) nearly reach that depth
-in 5 min (R ~ 21.2) and go 1.3 mag beyond it in 60 min (R ~ 22.8); 86 arrays reach R ~ 24.0 in
+in 5 min (R ~ 21.1) and go 1.3 mag beyond it in 60 min (R ~ 22.8); 86 arrays reach R ~ 24.0 in
 60 min, within ~0.5 mag of the LSST single-visit depth."""),
 md("""## Kilonova horizon
 
@@ -287,7 +288,7 @@ z_table = pd.DataFrame({f"N={n}": {key: zreach[key][n] for key in zreach} for n 
 z_table.index.names = ["exposure (min)", "phase"]
 z_table.style.format("{:.2f}").set_caption("SN Ia: maximum redshift for classification")"""),
 md("""In 30 minutes the nominal array classifies SNe Ia at peak to z ~ 0.24 (z ~ 0.16 one magnitude past
-peak). Ten arrays reach z ~ 0.40 and 86 arrays z ~ 0.63; doubling the exposure to 60 minutes adds
+peak). Ten arrays reach z ~ 0.40 and 86 arrays z ~ 0.62; doubling the exposure to 60 minutes adds
 only ~0.05-0.1 in redshift."""),
 md("""## TDE monitoring
 
@@ -301,9 +302,9 @@ tde_mags = (18, 19, 20, 21)
 pd.DataFrame({f"N={n}": dict(zip([f"R={m}" for m in tde_mags],
                                  bench(n).exptime_vs_mag(tde, tde_mags, snr=snr_resel_mon, wavelength=WINDOW)/60))
               for n in SCALES}).T.rename_axis("array size").style.format("{:.1f}").set_caption("TDE monitoring: exposure time per epoch (min, SNR=20 per R=300 bin)")"""),
-md("""For the nominal array a TDE at R = 18-19 costs 4-13 minutes per epoch, so weekly spectra of several
+md("""For the nominal array a TDE at R = 18-19 costs 5-14 minutes per epoch, so weekly spectra of several
 TDEs are cheap. At R = 20 an epoch takes about 55 minutes, and R = 21 (~4.5 h) is out of reach. Ten
-arrays bring R = 20 down to ~7 minutes and R = 21 to ~30 minutes; 86 arrays do R = 21 in ~5 minutes,
+arrays bring R = 20 down to ~8 minutes and R = 21 to ~30 minutes; 86 arrays do R = 21 in ~6 minutes,
 which opens up the much larger sample of fainter TDEs that LSST will find."""),
 md("""
 ## AGN reverberation mapping: continuum precision per epoch
@@ -579,7 +580,7 @@ for n in (20, 200, 1720):
         ne = np.nansum(r.n_star*r.exptime)        # source electrons across the 40 A window
         row.append(f"H={h}: {2.998e5/(Q*np.sqrt(ne)):7.2f} km/s")
     print(f"N={n:5d} (15 min, photon-only, Q assumed): " + "  ".join(row))"""),
-md("## Bright end: reads needed for a J = 3 star in 300 s (40 ke- full well)"),
+md("## Bright end: reads needed for a J = 3 star in 300 s (55 ke- full well)"),
 code("""for n in (20, 200, 1720):
     print(f"N={n:5d}: reads = {he(n, 'cshell_r18000').reads_needed(Source.blackbody(4800, 3, 'J'), 300)}")"""),
 ]
