@@ -62,7 +62,8 @@ Changed
   per-resel API, now the sum of its pixels). ``"gaussian"`` is the default; ``lsf=None`` and a
   ``"uniform"`` grid are the reference boxcar. Smooth-source resel numbers move by ~1e-4 (source)
   and ~1e-3 (sky); narrow lines keep their equivalent width and get the instrument's width.
-  ``Sky.transmission_smoothed``.
+  ``Sky.transmission_smoothed``; ``LFASTETC.sky_radiance(per="resel"|"pixel")`` and
+  ``plotting.sky_surface_brightness_ab(etc, per=...)`` report the sky as the spectrograph sees it.
 * ``Telescope.throughput_cascade()`` and ``LFASTETC.throughput_cascade()`` /
   ``plot_throughput_cascade()`` lay the shipped ``K_opt`` out as the Choi et al. (2026) budget:
   the paper's wavelength-independent stages (``CHOI_STAGES``) plus a derived residual for mirror,

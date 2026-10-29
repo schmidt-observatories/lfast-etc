@@ -351,9 +351,12 @@ class LFASTETC:
         k_eff = tel.throughput_point_source(lf) / t_1nm * t_res                              # resolved point-source throughput
         self._fine_clear = (tel.kopt(lf) > 0) & (k_eff >= KOPT_EPS)                          # kopt's rule, on the resolved curve
         self._fine_star_factor = common * k_eff                                               # e-/s/nm per ph/s/m^2/nm
-        sky_density = common * tel.throughput_extended(lf) / t_1nm * t_res * tel.fiber_solid_angle_arcsec2 \
-            * sky.radiance_per_bin(lf, self._fine_dl)                                       # e-/s/nm, whole array
+        radiance = sky.radiance_per_bin(lf, self._fine_dl)                                  # ph/s/m^2/nm/arcsec^2
+        sky_density = common * tel.throughput_extended(lf) / t_1nm * t_res * tel.fiber_solid_angle_arcsec2 * radiance   # e-/s/nm, whole array
         sky_c = self._convolve(sky_density)
+        rad_c = self._convolve(radiance)                                                    # the sky as the spectrograph sees it
+        self._sky_radiance = {"resel": self._integrate(rad_c, *self._resel_edges) / self.delta_lambda,
+                              "pixel": self._integrate(rad_c, *self._px_edges) / self.pixel_delta_lambda}
         # a resel or pixel is valid only if every fine sample in it has throughput: the same
         # neighbour-zeroing as Telescope.kopt's rule (#12), so no bin lives on a 1e-6 wing
         clear = self._fine_clear.astype(float)
@@ -424,6 +427,18 @@ class LFASTETC:
     def sky_rate_per_pixel(self):
         """Sky electron rate per pixel [e-/s/pix], whole array (LSF-convolved with an ``lsf``)."""
         return self._sky_rate_pix if self.lsf is None else self._sky_resel_pix
+
+    def sky_radiance(self, per="resel"):
+        """Mean sky radiance per resolution element or per detector pixel
+        [ph/s/m^2/nm/arcsec^2]: the SkyCalc table convolved with the LSF (``lsf`` runs) or
+        bin-averaged (``lsf=None``, ``per="resel"`` only)."""
+        if per not in ("resel", "pixel"):
+            raise ValueError("per must be 'resel' or 'pixel'")
+        if self.lsf is None:
+            if per == "pixel":
+                raise ValueError("per='pixel' needs an lsf")
+            return self.sky.radiance_per_bin(self.wavelength, self.delta_lambda)
+        return self._sky_radiance[per]
 
     def star_rate(self, source):
         """Stellar electron rate per resel [e-/s], whole array."""

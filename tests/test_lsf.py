@@ -107,3 +107,24 @@ def test_pixel_result_simulate_table_and_validation():
         LFASTETC("bench_r1800", lsf="sinc")
     u = LFASTETC("bench_r1800", grid="uniform")           # pixels need the resel grid: boxcar only
     assert u.lsf is None and u.exptime(SRC, 50).pixel is None
+
+
+def test_sky_radiance_is_convolved_per_resel_and_per_pixel():
+    """The He/OH airglow lines near 1083 nm on CSHELL R=18,000: the raw table (R=20,000, one
+    sample per line) is spikier than the LSF-convolved radiance, which spans ~6 pixels, keeps the
+    line flux, and is what sky_surface_brightness_ab reports."""
+    from lfast_etc.plotting import sky_surface_brightness_ab
+    kw = dict(wavelength_min_nm=1082, wavelength_max_nm=1085)
+    box, etc = LFASTETC("cshell_r18000", lsf=None, **kw), LFASTETC("cshell_r18000", **kw)
+    raw, resel, px = box.sky_radiance(), etc.sky_radiance("resel"), etc.sky_radiance("pixel")
+    band = float(etc.sky.radiance_per_bin(np.array([1083.5]), np.array([3.0]))[0])                # the table's own band mean
+    assert px.mean() == pytest.approx(band, rel=0.03) and resel.mean() == pytest.approx(band, rel=0.03)   # flux kept
+    assert abs(raw.mean() / band - 1) > abs(resel.mean() / band - 1)                               # nearest-sampling was not
+    assert px.max() < raw.max() and px.std() / px.mean() < raw.std() / raw.mean()                 # lines spread out
+    k = int(px.argmax())
+    assert (px[k - 10:k + 11] > 0.5 * px[k]).sum() >= 5                                             # ~one resel wide
+    sb = sky_surface_brightness_ab(etc, per="pixel")
+    assert sb.shape == etc.pixel_wavelength.shape and np.isfinite(sb).all()
+    assert sky_surface_brightness_ab(etc).shape == etc.wavelength.shape
+    with pytest.raises(ValueError):
+        box.sky_radiance("pixel")

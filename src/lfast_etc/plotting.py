@@ -82,10 +82,12 @@ def plot_throughput(etc, ax=None):
     return ax
 
 
-def sky_surface_brightness_ab(etc):
-    """Resel-averaged sky surface brightness on the ETC grid [AB mag / arcsec^2]."""
-    rad = etc.sky.radiance_per_bin(etc.wavelength, etc.delta_lambda)      # ph/s/m^2/nm/arcsec^2
-    lam_m = etc.wavelength * 1e-9
+def sky_surface_brightness_ab(etc, per="resel"):
+    """Sky surface brightness per resolution element (or per detector pixel, ``per="pixel"``,
+    on ``etc.pixel_wavelength``) [AB mag / arcsec^2], as the spectrograph sees it (LSF-convolved
+    with an ``lsf``, see ``LFASTETC.sky_radiance``)."""
+    rad = etc.sky_radiance(per)                                              # ph/s/m^2/nm/arcsec^2
+    lam_m = (etc.wavelength if per == "resel" else etc.pixel_wavelength) * 1e-9
     f_lambda = rad * H_PLANCK * C_LIGHT / lam_m * 1e9                       # W/m^2/m/arcsec^2
     f_nu_jy = f_lambda * lam_m ** 2 / C_LIGHT / 1e-26                       # Jy/arcsec^2
     with np.errstate(divide="ignore"):
