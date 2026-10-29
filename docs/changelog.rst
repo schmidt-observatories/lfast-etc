@@ -1,8 +1,8 @@
 Changelog
-=========
+==
 
-Unreleased
-----------
+0.1.1 (2026-10-29)
+------------------
 
 Code review, notebooks and documentation pass (see the GitHub issues #2 to #30 for the full list).
 
@@ -53,6 +53,44 @@ Added
 
 Changed
 
+* Docs: the landing and notebooks pages follow the ``wcc-etc`` layout (inline SOS logo, prose
+  overview, visible table of contents) instead of ``sphinx-design`` card grids, which is no longer a
+  docs dependency. The logo lives in ``docs/_static/``.
+* Line-spread function and detector pixels: ``LFASTETC(lsf="gaussian"|"tophat"|None,
+  oversample=8)``. The source, sky and the resolved SkyCalc transmission (``K_opt``'s 1 nm
+  atmosphere divided out) are evaluated on a fine working grid, convolved with the LSF (Gaussian
+  of FWHM one resel, or the fiber-image top hat with the camera blur) and integrated over each
+  detector pixel (``ETCResult.pixel``, a ``PixelResult`` with per-extracted-pixel rates, ``snr``,
+  ``exptime``, ``peak_e_per_pixel``, ``simulate()``) and over each resolution element (the
+  per-resel API, now the sum of its pixels). ``"gaussian"`` is the default; ``lsf=None`` and a
+  ``"uniform"`` grid are the reference boxcar. Smooth-source resel numbers move by ~1e-4 (source)
+  and ~1e-3 (sky); narrow lines keep their equivalent width and get the instrument's width.
+  ``Sky.transmission_smoothed``; ``LFASTETC.sky_radiance(per="resel"|"pixel")`` and
+  ``plotting.sky_surface_brightness_ab(etc, per=...)`` report the sky as the spectrograph sees it.
+* ``Telescope.throughput_cascade()`` and ``LFASTETC.throughput_cascade()`` /
+  ``plot_throughput_cascade()`` lay the shipped ``K_opt`` out as the Choi et al. (2026) budget:
+  the paper's wavelength-independent stages (``CHOI_STAGES``) plus a derived residual for mirror,
+  corrector and fiber attenuation, then injection, seeing, spectrograph, slit and QE.
+* ``seeing_psf="choi"`` is the new default: the seeing factor comes from a table calibrated to both
+  shipped ``eta_fib`` curves with the paper's non-seeing blur, so 1.5 arcsec costs 0.69 at 550 nm
+  rather than the bare-Moffat 0.62. ``"moffat"`` and ``"gaussian"`` remain.
+* CSHELL detector from Brown et al. (2026, SPIE 14149, Table 1; the IRTF measurements of the
+  Hughes 256x256 SBRC InSb): dark current 0.5 e-/s/pix (the IRTF page's 5 e-/s was the K-band
+  background through the IRTF), read noise 22 e- at 6 Fowler samples, 55,000 e- 1%-linear well at the
+  default bias, QE 0.8. CSHELL faint limits recover about 1 mag relative to the 5 e-/s assumption.
+* The extraction aperture is the full fiber image (#13): ``n_pix = pixels_per_resel *
+  fiber_image_px``, with a circular image by default and the native 6 px height set explicitly
+  for the CSHELL slit modes. Sky, dark and read-noise terms grow accordingly (x2.2 on the Bench);
+  ``fiber_image_px=1.0`` restores the reference notebook's dispersion-only count.
+* The peak pixel uses a rendered fiber-image profile (#19): ``Instrument.profile`` is
+  ``"tophat"`` (default), ``"uniform"`` or ``"gaussian"``; ``peak_fraction``, ``pixel_image()``
+  and ``plot_profile()`` expose it. Saturation flags and ``reads_needed`` follow.
+* ``Telescope(seeing_arcsec=...)`` scales the point-source throughput with a Moffat (or Gaussian)
+  seeing disc integrated over the fiber, relative to a placeholder 1.0 arcsec reference (#14);
+  ``fiber_coupling()`` and ``plot_fiber_coupling()`` expose it. The sky path is unchanged.
+
+* Full wells are sourced instead of placeholders: 87,500 e- for every Bench mode (WIYN STA1
+  CCD page, 1% linearity to 63,000 e-) and, for CSHELL, 55,000 e- (Brown et al. 2026; superseding the 40,000 e- inferred from the IRTF page). Saturation flags, ``reads_needed`` and the web markers follow.
 * Documentation theme is ``pydata_sphinx_theme`` (as for the WCC ETC).
 * The duplicated wavelength-selector and box-band code paths are merged.
 

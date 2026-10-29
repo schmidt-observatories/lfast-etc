@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lfast-etc"
-version = "0.1.0"
+version = "0.1.1"
 authors = [{ name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org" }]
 description = "Exposure Time Calculator for the LFAST telescope array (WIYN Bench spectrograph and CSHELL)."
 readme = "README.md"
@@ -20,7 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 web = ["flask>=3", "bokeh>=3.4"]
 docs = [
-  "sphinx>=7", "sphinx-rtd-theme>=2.0", "nbsphinx", "sphinx-design",
+  "sphinx>=7", "sphinx-rtd-theme>=2.0", "nbsphinx",
   "sphinx-copybutton", "myst-parser", "ipykernel",
 ]   # plus the pandoc binary on PATH
 notebooks = ["pandas>=2.0", "jinja2>=3.0"]   # result tables in the example notebooks (pandas Styler needs jinja2)
@@ -42,6 +42,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "lfast_etc" = [
   "data/throughput/*.npy",
+  "data/throughput/*.npz",
   "data/sky/*.fits",
   "data/config/*.toml",
   "web/templates/*.html",

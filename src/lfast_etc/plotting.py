@@ -82,10 +82,12 @@ def plot_throughput(etc, ax=None):
     return ax
 
 
-def sky_surface_brightness_ab(etc):
-    """Resel-averaged sky surface brightness on the ETC grid [AB mag / arcsec^2]."""
-    rad = etc.sky.radiance_per_bin(etc.wavelength, etc.delta_lambda)      # ph/s/m^2/nm/arcsec^2
-    lam_m = etc.wavelength * 1e-9
+def sky_surface_brightness_ab(etc, per="resel"):
+    """Sky surface brightness per resolution element (or per detector pixel, ``per="pixel"``,
+    on ``etc.pixel_wavelength``) [AB mag / arcsec^2], as the spectrograph sees it (LSF-convolved
+    with an ``lsf``, see ``LFASTETC.sky_radiance``)."""
+    rad = etc.sky_radiance(per)                                              # ph/s/m^2/nm/arcsec^2
+    lam_m = (etc.wavelength if per == "resel" else etc.pixel_wavelength) * 1e-9
     f_lambda = rad * H_PLANCK * C_LIGHT / lam_m * 1e9                       # W/m^2/m/arcsec^2
     f_nu_jy = f_lambda * lam_m ** 2 / C_LIGHT / 1e-26                       # Jy/arcsec^2
     with np.errstate(divide="ignore"):
@@ -200,4 +202,67 @@ def plot_limiting_magnitude(etc, source, exptimes, snr, ax=None, label_fmt="{t:g
     ax.set_xlabel("Wavelength (nm)")
     ax.set_ylabel(f"Limiting {source.band} mag (SNR={snr:g}/resel)")
     ax.legend(title="exposure")
+    return ax
+
+
+def plot_profile(instrument, ax=None):
+    """Pixelated fiber image of one resel on the detector (#19) with the peak fraction."""
+    ax = _ax(ax, (4.2, 4))
+    img = instrument.pixel_image()
+    n = img.shape[0]
+    ext = (-n / 2 - 0.5, n / 2 - 0.5, -n / 2 - 0.5, n / 2 - 0.5)      # pixel k spans [k-0.5, k+0.5)
+    im = ax.imshow(img, origin="lower", extent=ext, cmap="viridis", interpolation="nearest")
+    if n > 1:
+        for k in np.arange(-n / 2 - 0.5, n / 2 + 0.5):
+            ax.axhline(k, color="w", lw=0.3, alpha=0.5); ax.axvline(k, color="w", lw=0.3, alpha=0.5)
+    ax.set_xlabel("dispersion (pixels)"); ax.set_ylabel("spatial (pixels)")
+    ax.set_title(f"{instrument.name}: {instrument.profile}, {instrument.pixels_per_resel:g} x "
+                 f"{instrument.spatial_px:g} px, n_pix={instrument.n_pix:.3g}\npeak pixel holds "
+                 f"{100 * instrument.peak_fraction:.1f}% of the resel", fontsize=9)
+    plt.colorbar(im, ax=ax, fraction=0.046, label="fraction of resel light per pixel")
+    return ax
+
+
+def plot_fiber_coupling(telescope, ax=None, seeing=None):
+    """Geometric fraction of a point source inside the fiber versus seeing FWHM at
+    500 nm (#14), for both PSF shapes, with the reference and current seeing marked."""
+    ax = _ax(ax, (6.5, 4))
+    seeing = np.linspace(0.4, 3.0, 131) if seeing is None else np.asarray(seeing, float)
+    for psf, ls in (("moffat", "-"), ("gaussian", "--")):
+        label = f"{psf} disc (beta={telescope.moffat_beta:g})" if psf == "moffat" else "gaussian disc"
+        ax.plot(seeing, telescope.fiber_coupling(seeing, psf=psf), ls, label=label)
+    try:                                       # Choi-calibrated: eta_fib at 500 nm times the table factor
+        import dataclasses
+        eta0 = float(telescope.eta_fib(500.0))
+        f = np.array([dataclasses.replace(telescope, seeing_arcsec=float(x), seeing_psf="choi", seeing_ref_arcsec=1.0).seeing_factor(500.0) for x in seeing])
+        ax.plot(seeing, eta0 * f, "-.", label="Choi 2026 calibrated (eta_fib x factor)")
+    except FileNotFoundError:
+        pass
+    ax.axvline(telescope.seeing_ref_arcsec, color="0.5", lw=0.8, ls=":", label=f"reference {telescope.seeing_ref_arcsec:g}\"")
+    if telescope.seeing_arcsec is not None:
+        ax.axvline(telescope.seeing_arcsec, color="C3", lw=0.8, label=f"current {telescope.seeing_arcsec:g}\" (x{telescope.seeing_factor(500.0):.2f})")
+    ax.set_xlabel("seeing FWHM at 500 nm (arcsec)")
+    ax.set_ylabel(f"fraction inside the {telescope.fiber_diameter_arcsec:.2f}\" fiber")
+    ax.set_ylim(0, 1); ax.set_xlim(seeing.min(), seeing.max())
+    ax.legend(fontsize=8)
+    return ax
+
+
+def plot_throughput_cascade(etc, ax=None, path="star"):
+    """Cumulative throughput after each stage of the Choi et al. (2026) budget, then the
+    spectrograph and detector, like their Figure 11 (``path="sky"`` drops the fiber injection)."""
+    ax = _ax(ax, (10, 6.2))
+    c = etc.throughput_cascade(path=path)
+    w = c["wavelength"]
+    n = len(c["stages"])
+    colors = plt.cm.viridis(np.linspace(0.05, 0.9, n))
+    for i, (s, cum) in enumerate(zip(c["stages"], c["cumulative"])):
+        short = s["name"].split(":")[0].split(" (")[0]
+        last = i == n - 1
+        ax.plot(w, cum, color="k" if last else colors[i], lw=2.4 if last else 1.1,
+                label=("end to end" if last else f"after {short}") + f" ({100 * np.nanmedian(cum):.0f}%)")
+    ax.set_ylim(0, 1); ax.set_xlim(w.min(), w.max())
+    ax.set_xlabel("Wavelength (nm)"); ax.set_ylabel("Cumulative throughput")
+    ax.set_title(f"Throughput cascade, {path} path: {etc.telescope.fiber} fiber, {etc.instrument.name} (Choi et al. 2026 budget)", fontsize=9)
+    ax.legend(fontsize=7, loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2)
     return ax

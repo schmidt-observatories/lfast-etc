@@ -67,7 +67,7 @@ reads_needed
 
 The smallest number of reads that keeps the brightest pixel below ``margin * full_well``
 (``0 < margin <= 1``) in a total exposure; 1 when the instrument's full well is unknown. The
-brightest pixel is approximated as a uniform share of the resel on the most heavily loaded
+brightest pixel is the resel's light times the detector profile's peak fraction on the most heavily loaded
 detector, so the estimate is optimistic (see :doc:`physics`). Reads shorter than
 ``Instrument.min_exptime`` are not prevented: check ``ETCResult.below_min_exptime``. Notebook 05
 uses it to split bright He 10830 hosts into reads.

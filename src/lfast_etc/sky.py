@@ -47,6 +47,23 @@ class Sky:
         self.scale = positive("scale", scale, allow_zero=True)
         self.wavelength_nm, self._flux, self._trans = _load(self.path)
 
+    def _bin_mean(self, values, wavelength_nm, delta_lambda_nm):
+        """Mean of a table column over ``[lambda - dl/2, lambda + dl/2]``; the nearest
+        sample where the bin is narrower than the table sampling."""
+        wl = np.asarray(wavelength_nm, float)
+        half = np.asarray(delta_lambda_nm, float) / 2.0
+        lam = self.wavelength_nm
+        lo = np.searchsorted(lam, wl - half, side="left")
+        hi = np.searchsorted(lam, wl + half, side="right")
+        csum = np.concatenate([[0.0], np.cumsum(values)])
+        n = hi - lo
+        with np.errstate(invalid="ignore", divide="ignore"):
+            mean = (csum[hi] - csum[lo]) / n
+        nearest = np.clip(np.searchsorted(lam, wl), 1, len(lam) - 1)
+        use_prev = np.abs(wl - lam[nearest - 1]) <= np.abs(lam[nearest] - wl)
+        nearest = np.where(use_prev, nearest - 1, nearest)
+        return np.where(n > 0, mean, values[nearest])
+
     def radiance_per_bin(self, wavelength_nm, delta_lambda_nm):
         """Mean sky radiance in each bin [ph/s/m^2/nm/arcsec^2].
 
@@ -54,20 +71,14 @@ class Sky:
         averaged; a bin narrower than the table sampling falls back to the
         nearest sample.
         """
+        return self._bin_mean(self._flux, wavelength_nm, delta_lambda_nm) / 1000.0 * self.scale   # per micron -> per nm
+
+    def transmission_smoothed(self, wavelength_nm, width_nm=1.0):
+        """Atmospheric transmission box-averaged over ``width_nm`` (the sampling of the
+        shipped ``K_opt``), used to take the 1 nm atmosphere out of ``K_opt`` before the
+        line-spread function puts the resolved one back (see ``LFASTETC``, ``lsf``)."""
         wl = np.asarray(wavelength_nm, float)
-        half = np.asarray(delta_lambda_nm, float) / 2.0
-        lam, flux = self.wavelength_nm, self._flux
-        lo = np.searchsorted(lam, wl - half, side="left")
-        hi = np.searchsorted(lam, wl + half, side="right")
-        csum = np.concatenate([[0.0], np.cumsum(flux)])
-        n = hi - lo
-        with np.errstate(invalid="ignore", divide="ignore"):
-            mean = (csum[hi] - csum[lo]) / n
-        nearest = np.clip(np.searchsorted(lam, wl), 1, len(lam) - 1)
-        use_prev = np.abs(wl - lam[nearest - 1]) <= np.abs(lam[nearest] - wl)
-        nearest = np.where(use_prev, nearest - 1, nearest)
-        out = np.where(n > 0, mean, flux[nearest])
-        return out / 1000.0 * self.scale   # per micron -> per nm
+        return self._bin_mean(self._trans, wl, np.full_like(wl, float(width_nm)))
 
     def transmission(self, wavelength_nm):
         """Atmospheric transmission interpolated onto ``wavelength_nm``."""
