@@ -20,7 +20,8 @@ Install
     pip install -e .            # the calculator
     pip install -e ".[web]"     # + the Flask/Bokeh browser ETC
     pip install -e ".[docs]"    # + Sphinx, to build these pages (also needs the pandoc binary)
-    pip install -e ".[dev]"     # + pytest, nbclient, jupyter, to run the tests and rebuild the notebooks
+    pip install -e ".[notebooks]"  # + pandas, to run the example notebooks
+    pip install -e ".[dev]"     # + pytest, nbclient, jupyter, pandas, to run the tests and rebuild the notebooks
 
 With `uv <https://docs.astral.sh/uv/>`_ the same reads ``uv pip install -e ".[web,dev]"`` inside
 a virtual environment.

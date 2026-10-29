@@ -28,7 +28,7 @@ Science cases, nominal array
 ----------------------------
 
 - :doc:`notebooks/03_stellar_metallicity`: LAMOST-like R~1800 metallicity depth and survey speed with the Bench.
-- :doc:`notebooks/04_tdamm_followup`: Classification depth at R = 300, kilonova and afterglow time-to-classify.
+- :doc:`notebooks/04_tdamm_followup`: Classification depth at R = 300, kilonova time-to-classify and afterglow time-to-redshift.
 - :doc:`notebooks/05_exoplanet_atmospheres_cshell`: He 10830 transmission spectroscopy at R = 43,000 and 18,000, and the FSR limits of cross-correlation.
 
 .. toctree::

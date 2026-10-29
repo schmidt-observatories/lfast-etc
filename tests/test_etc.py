@@ -130,6 +130,17 @@ def test_instrument_presets_load_and_override():
         Instrument.from_preset("bench_r1800", resolving_power=-5)
 
 
+def test_setting_window():
+    lo, hi = Instrument.from_preset("cshell_r18000").setting_window(1555.0)
+    assert hi - lo == pytest.approx(1555.0 * 2.5e-3)
+    assert (lo + hi) / 2 == pytest.approx(1555.0)
+    assert Instrument.from_preset("cshell_r18000").setting_window(1080.5)[0] == 1080.0   # clipped
+    bench = Instrument.from_preset("bench_r1800")
+    assert bench.setting_window(550.0) == (bench.wavelength_min_nm, bench.wavelength_max_nm)
+    with pytest.raises(ValueError):
+        bench.setting_window(1000.0)
+
+
 @pytest.mark.parametrize("name", list_instruments())
 def test_every_preset_runs_inside_the_throughput_range(name):
     ins = Instrument.from_preset(name)

@@ -12,6 +12,7 @@ from nbclient import NotebookClient
 
 OUT = Path(__file__).resolve().parents[1] / "notebooks"
 PREAMBLE = """import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from lfast_etc import LFASTETC, Source, Telescope, Instrument, Sky, list_instruments
 from lfast_etc.plotting import plot_snr_map, plot_limiting_magnitude, plot_vs_n_telescopes, equivalent_diameter_axis
@@ -40,16 +41,19 @@ nb("01_quickstart", [
 md("""
 # LFAST ETC quick start
 
-LFAST is an array of small telescopes: nominally 20 units of 0.726 m at Kitt Peak, each feeding
-a fiber, with the fibers merged into one spectrograph input. `lfast_etc` answers the two
+The LFAST prototype is an array of small telescopes: nominally 20 units of 0.726 m at Kitt Peak,
+each feeding an 18 micron fiber, with the fibers merged into one spectrograph input by a fiber
+combiner. `lfast_etc` answers the two
 questions every observer asks of such a system. How long do I need to expose to reach a given
 signal-to-noise ratio (SNR) on this target, and what SNR do I get in a given time?
 
 Two spectrographs are modelled: the WIYN Bench (visible; the preset used below is the R ~ 1800
-sample configuration) and CSHELL (1.08 to 1.75 um, R = 18,000 to 43,000). The throughput
-model follows Choi et al. (2026, SPIE 14147). The test suite reproduces the reference LFAST ETC
-notebook of 2026-10-12 to one part in a million, so the numbers here are those of the reference
-calculation.
+sample configuration) and CSHELL (near-infrared, 1.08 to 1.75 um, R = 18,000 to 43,000). The throughput
+model calculations are based on the work of Choi et al. (2026, SPIE 14147).
+
+A description of the Bench spectrograph, including modes and wavelength coverage, can be found here: https://www.wiyn.org/Instruments/wiynbench.html.
+
+A description of the CSHELL spectrograph, including modes and wavelength coverage, can be found here: https://irtfweb.ifa.hawaii.edu/~cshell/info.html
 
 After this notebook you will be able to build an ETC for any preset and array size, define a
 target, read exposure times and SNRs off the result object, see which noise term limits you, and
@@ -58,15 +62,18 @@ plot what the extracted spectrum would look like.
 ## One idea to hold on to: everything is per resolution element
 
 The spectrum is cut into bins one resolution element (resel) wide, $\\delta\\lambda = \\lambda/R$.
-In each bin the star delivers $N_*$ electrons per second (summed over the whole array), the sky
+In each bin the source delivers $N_*$ electrons per second (summed over the whole array), the sky
 delivers $N_{sky}$ electrons per second per pixel, and the resel is spread over $n_{pix}$ detector
-pixels (2.2 for the Bench, 2.5 for CSHELL). With dark current $D$, read noise $RN$ and a total
+pixels: the pixels per resel along the dispersion direction times the height of the fiber image on
+the detector (2.2 x 2.2 = 4.8 for the Bench; 6 x 6 = 36 for CSHELL at R = 18,000, whose fiber
+image is 6 px high). With dark current $D$, read noise $RN$ and a total
 exposure $t$ split into $n_{exp}$ reads, the SNR per resel is (Howell 2006)
 
 $$\\mathrm{SNR} = \\frac{N_* t}{\\sqrt{N_* t + n_{pix}(N_{sky} + D)\\,t + n_{pix}\\, n_{exp}\\, RN^2}}.$$
 
 Survey papers often quote SNR per pixel. In the photon-limited regime that is lower by about
-$\\sqrt{n_{pix}}$, so SNR 30 per resel is roughly SNR 20 per pixel on the Bench. Keep that
+$\\sqrt{2.2}$, the pixels per resel along the dispersion direction, so SNR 30 per resel is roughly
+SNR 20 per pixel on the Bench. Keep that
 conversion in mind when you compare with the literature.
 """),
 code(PREAMBLE),
@@ -81,6 +88,26 @@ and the sky table.
 code("""print(list_instruments())
 etc = LFASTETC("bench_r1800", n_telescopes=20)
 etc"""),
+md("""## Available instrument modes
+
+Each instrument mode is a preset: a set of spectrograph and detector parameters loaded by name. The
+table lists the bundled presets. *One setting* is the wavelength range a single exposure covers:
+the whole range for the Bench, but only one free spectral range (~2.5e-3 $\\lambda$) for CSHELL, so
+a CSHELL observation covers ~3 nm at 1.08 um and ~4 nm at 1.55 um (see below). `n_pix` is the
+extraction aperture per resel (dispersion pixels times the fiber-image height). The CSHELL slit
+throughputs at R = 21,500 and 43,000 and the flat QEs are placeholders."""),
+code("""rows = {}
+for name in list_instruments():
+    ins = Instrument.from_preset(name)
+    lo, hi = ins.setting_window(0.5*(ins.wavelength_min_nm + ins.wavelength_max_nm))
+    rows[name] = {"description": ins.description, "R": int(ins.resolving_power),
+                  "range (nm)": f"{ins.wavelength_min_nm:.0f}-{ins.wavelength_max_nm:.0f}",
+                  "one setting at centre (nm)": round(hi - lo, 1),
+                  "efficiency": ins.efficiency, "QE": ins.qe, "pix/resel": ins.pixels_per_resel, "n_pix": ins.n_pix,
+                  "read noise (e-)": ins.read_noise, "dark (e-/s/pix)": ins.dark_current,
+                  "min exptime (s)": ins.min_exptime}
+modes = pd.DataFrame(rows).T.rename_axis("preset")
+modes"""),
 md("""
 The grid has one point per resel. Here that is about 900 bins between 412 and 686 nm. The preset
 stops at 686 nm because the telescope throughput curve has a zero at the 687 nm O$_2$ band.
@@ -119,7 +146,8 @@ needed for SNR 50 per resel at each wavelength. Time rises steeply to the blue b
 throughput and this star's SED fall there. The H$\\alpha$ line shows up as a spike: fewer photons
 in the line, more time needed.
 """),
-code("""res = etc.exptime(src, snr=50)
+code("""snr = 50
+res = etc.exptime(src, snr=snr)
 res.plot()
 res.summary()"""),
 md("""
@@ -137,7 +165,7 @@ reaches the target set above.
 """),
 code("""res = etc.snr(src, exptime=600)
 ax = res.plot()
-ax.axhline(50, color='0.4', ls='--')
+ax.axhline(snr, color='0.4', ls='--')
 res.summary()['snr']"""),
 md("""
 ## Which noise term limits you?
@@ -172,39 +200,60 @@ axis, brighter is up), with the sky electron rate per pixel in the 18 um fiber i
 magnitude fainter. The spikes are airglow lines.
 """),
 code("""etc.plot_sky();"""),
-md("""
-## Switching instruments and overriding parameters
+md("""## Switching instruments: one CSHELL setting
 
-CSHELL is an echelle with a small free spectral range, about 2.5e-3 of the wavelength, so one
-setting covers about 40 A at 1.55 um. Restrict the grid to the setting you care about. Any
-instrument field can be overridden through `Instrument.from_preset(name, **overrides)` or
-`instrument.replace(...)`; the example lowers the read noise to see how much it matters for a
-bright K star in 300 s.
-"""),
-code("""cshell = LFASTETC("cshell_r18000", wavelength_min_nm=1550, wavelength_max_nm=1554)
+CSHELL is a single-order echelle: its free spectral range is only ~2.5e-3 $\\lambda$, so one setting
+covers a narrow window (~4 nm at 1.55 um). `Instrument.setting_window(center_nm)` returns the
+window of one setting, which is then passed to the ETC to restrict the wavelength grid."""),
+code("""cs = Instrument.from_preset("cshell_r18000")
+lo, hi = cs.setting_window(1555.0)
+print(f"One CSHELL setting centred on 1555 nm covers {lo:.1f}-{hi:.1f} nm ({10*(hi - lo):.0f} A)")
+
+cshell = LFASTETC(cs, wavelength_min_nm=lo, wavelength_max_nm=hi)
 kstar = Source.blackbody(4500, mag=9, band="H")
 r = cshell.snr(kstar, exptime=300)
-print("CSHELL R=18k, H=9 K star, 300 s: median SNR/resel =", round(float(np.nanmedian(r.snr)), 1),
-      "| peak e-/pix =", int(np.nanmax(r.peak_e_per_pixel)), "| saturated:", bool(r.saturated.any()))
+print(f"H=9 K star, 300 s: median SNR/resel = {np.nanmedian(r.snr):.1f} | peak = {np.nanmax(r.peak_e_per_pixel):.0f} e-/pix | saturated: {bool(r.saturated.any())}")"""),
+md("""## Overriding instrument parameters
 
-lowRN = Instrument.from_preset("cshell_r18000", read_noise=5.0)
-r2 = LFASTETC(lowRN, wavelength_min_nm=1550, wavelength_max_nm=1554).snr(kstar, exptime=300)
-print("same with RN = 5 e-:", round(float(np.nanmedian(r2.snr)), 1))"""),
+Every preset field can be changed, which is how to test design choices: `Instrument.from_preset(name, **overrides)`
+builds a modified preset and `instrument.replace(...)` copies an existing one with some fields changed.
+For example, what would a lower-noise detector buy CSHELL? Here its read noise drops from 22 to 5 e-:"""),
+code("""low_rn = cs.replace(read_noise=5.0)
+r2 = LFASTETC(low_rn, wavelength_min_nm=lo, wavelength_max_nm=hi).snr(kstar, exptime=300)
+for label, rr, ins in (("preset", r, cs), ("override", r2, low_rn)):
+    print(f"{label:8s}: read noise {ins.read_noise:4.0f} e-  ->  median SNR/resel = {np.nanmedian(rr.snr):.1f}")"""),
+md("""At H = 9 the star gives ~6600 e$^-$ per resel in 300 s, but the read noise, 22 e$^-$ on each of
+the 36 pixels of the extraction aperture, adds a variance of ~17,000 e$^{-2}$, more than the star's
+own photon noise. Lowering it to 5 e$^-$ therefore raises the SNR by ~50%; for fainter targets,
+where read noise is an even larger share of the noise, the gain is larger still."""),
 md("""
 ## Scaling the array
 
-The number of telescopes is an ordinary parameter. With the 18 um fibers every telescope feeds the
-same spectrograph input (`combine="fiber"`): signal and sky per pixel grow with $N$ while the
-detector noise is paid once. The 50 um fiber does not go through the combiner, so each telescope
-produces its own spectrum that is co-added afterwards (`combine="independent"`), and the SNR
-grows as $\\sqrt{N}$. For a faint star the fiber mode wins once read noise matters.
+The number of telescopes is an ordinary parameter. With the 18 um fibers the telescopes of one
+array feed the same spectrograph input through the combiner (`combine="fiber"`): signal and sky
+per pixel grow with $N$ while the detector noise is paid once per input. Beyond 20 telescopes the
+ETC assumes one combiner input per 20-telescope array (`telescopes_per_input=20`, the default), so
+100 and 200 telescopes are 5 and 10 inputs, read out separately and co-added. The 50 um fiber does
+not go through the combiner, so each telescope produces its own spectrum that is co-added
+afterwards (`combine="independent"`), and the SNR grows as $\\sqrt{N}$. For a faint star the fiber
+mode wins once read noise matters.
 """),
-code("""faint = Source.blackbody(5800, mag=19, band="V")
-for n in (1, 5, 20, 50):
+code("""faint_source = Source.blackbody(5800, mag=19, band="V")
+snr_faint = 10
+rows = {}
+for n in (20, 100, 200):
+    row = {}
     for fiber in ("18um", "50um"):
         e = LFASTETC("bench_r1800", telescope=Telescope(n_telescopes=n, fiber=fiber))
-        t = e.exptime(faint, snr=20)
-        print(f"N={n:3d} {fiber}: median t(SNR=20) = {np.nanmedian(t.exptime)/60:7.1f} min  [{e.telescope.combine}]")"""),
+        row[f"{fiber} inputs"] = e.telescope.n_inputs
+        row[f"{fiber} time (min)"] = round(float(np.nanmedian(e.exptime(faint_source, snr=snr_faint).exptime))/60, 1)
+    rows[n] = row
+pd.DataFrame(rows).T.rename_axis("N telescopes").astype({"18um inputs": int, "50um inputs": int})"""),
+md("""With the 18 um fiber, 5x more telescopes cut the time by ~4x and 10x by ~6x. Co-adding the
+inputs raises the SNR by $\\sqrt{n_{inputs}}$ at fixed time; that is worth a factor $n_{inputs}$ in
+time only when the sky dominates the noise, and less here because read noise still contributes for
+this faint star. The 50 um fiber is slower at every N: it collects more sky per telescope and pays
+read noise once per telescope."""),
 md("""
 ## Your own spectrum
 
@@ -239,7 +288,7 @@ md("""
   which wavelengths does the sky take over?
 * Set `n_exp=10` in the SNR call. How much SNR does the extra read noise cost at V = 15, and at
   V = 19?
-* Replace `"bench_r1800"` with `"bench_316_63p4_o9"` (the R ~ 23,000 H$\\alpha$ mode). What
+* Replace `"bench_r1800"` with `"bench_316_63p4_o9"` (the R ~ 31,000 H$\\alpha$ mode). What
   happens to the exposure time for SNR 50 and why?
 """),
 ])
@@ -249,7 +298,7 @@ nb("02_sensitivity_maps_and_array_scaling", [
 md("""
 # Sensitivity maps and array scaling
 
-The stellar electron rate scales exactly as $10^{-0.4 m}$ with magnitude, so the ETC can evaluate
+The source electron rate scales exactly as $10^{-0.4 m}$ with magnitude, so the ETC can evaluate
 the SNR on a (magnitude, exposure time) grid without redoing the spectrum each time, and it can
 solve the limiting magnitude for a given SNR and exposure analytically, bin by bin. This notebook
 builds those maps for both instruments and then asks how they move with the number of
@@ -272,26 +321,31 @@ plot_snr_map(mags, exps, snr, band="V", title="Bench R~1800, 20 telescopes, medi
 md("""
 Where the contours are straight lines of slope $-2.5$ mag per decade of time the measurement is
 photon limited by the star. They bend at the faint end where sky and read noise enter and the gain
-per unit time slows down.
+per unit time slows down. Following the SNR = 10 contour, a V ~ 18.9 star reaches it in 15 min; the
+gain drops from 2.5 mag per decade at the bright end to 1.5 mag between 1000 and 10,000 s.
 
 ## CSHELL: SNR per resel versus H magnitude
 
-Same map for CSHELL in its native R = 18,000 mode, for one echelle setting at 1.55 to 1.56 um.
+Same map for CSHELL in its native R = 18,000 mode, for one echelle setting centred on 1.555 um (about 3.9 nm wide).
 The grid starts at 8 s because that is the shortest Fowler-sampled read for which the quoted
 read noise applies.
 """),
-code("""cshell = LFASTETC("cshell_r18000", n_telescopes=20, wavelength_min_nm=1550, wavelength_max_nm=1560)
+code("""cs = Instrument.from_preset("cshell_r18000")
+lo, hi = cs.setting_window(1555.0)               # one echelle setting (free spectral range ~2.5e-3 lambda)
+cshell = LFASTETC(cs, n_telescopes=20, wavelength_min_nm=lo, wavelength_max_nm=hi)
 kstar = Source.blackbody(4500, mag=0, band="H")
 mags_h = np.linspace(2, 16, 57)
 exps_h = exps[exps >= cshell.instrument.min_exptime]
-snr_h = cshell.snr_grid(kstar, mags_h, exps_h, wavelength=(1550, 1560))
+snr_h = cshell.snr_grid(kstar, mags_h, exps_h, wavelength=(lo, hi))
 plot_snr_map(mags_h, exps_h, snr_h, band="H", levels=(3, 10, 30, 100, 300),
-             title="CSHELL R=18k, 20 telescopes, 1.55-1.56 um");"""),
+             title=f"CSHELL R=18k, 20 telescopes, one setting {lo:.1f}-{hi:.1f} nm");"""),
 md("""
 ## Limiting magnitude versus wavelength
 
 `plot_limiting_magnitude` solves for the magnitude that reaches the target SNR in each bin. For the
 Bench the curve follows the throughput: deepest in the red, about a magnitude shallower at 420 nm.
+The spikes are night-sky emission lines ([O I] 557.7 nm, Na D near 589 nm, [O I] 630.0/636.4 nm)
+where the sky is locally much brighter.
 """),
 code("""fig, ax = plt.subplots(figsize=(9, 4))
 plot_limiting_magnitude(bench, gstar, exptimes=[60, 600, 3600], snr=10, ax=ax)
@@ -314,7 +368,8 @@ noise or dark current matter. Beyond 20 telescopes the ETC assumes one combiner 
 telescopes, co-added incoherently (`telescopes_per_input=20`); the dotted curve is an idealised
 single combiner for comparison. The 50 um fiber bypasses the combiner, so each telescope yields a
 spectrum and the SNR grows as $\\sqrt{N}$, but it couples about twice as much point-source light
-and admits a 7.7 times larger patch of sky.
+and admits a 7.7 times larger patch of sky. The nominal 20-telescope prototype and the
+100- and 200-telescope upgrade options are marked.
 """),
 code("""ns = np.array([1, 2, 4, 8, 12, 16, 20, 30, 40, 60, 80, 100, 150, 200])
 configs = (("18um", "fiber", 20), ("18um", "fiber", None), ("18um", "independent", 20), ("50um", "independent", 20))
@@ -326,23 +381,27 @@ for fiber, combine, tpi in configs:
             label=f"{fiber}, {combine}" + (" (ideal single combiner)" if tpi is None else ""))
 ax.set_xscale('log'); ax.invert_yaxis()
 ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting V (SNR=10/resel, 900 s)")
-ax.axvline(20, color='0.4', ls='--'); ax.text(21, ax.get_ylim()[1]+0.3, "nominal 20", fontsize=8)
+for n, txt, ha in ((20, "nominal 20", 'left'), (100, "100", 'left'), (200, "200", 'right')):
+    ax.axvline(n, color='0.4', ls='--'); ax.text(n*1.05 if ha == 'left' else n/1.05, ax.get_ylim()[1]+0.3, txt, fontsize=8, ha=ha)
 ax.legend(fontsize=8); ax.set_title("Bench R~1800, median over 500-650 nm", fontsize=9)
 equivalent_diameter_axis(ax);"""),
 md("""
 The top axis converts the number of telescopes into the diameter of a single telescope with the
-same collecting area. The same comparison for CSHELL, where the 22 e$^-$ read noise and 5
-e$^-$/s dark-plus-background current are large, shows the fiber combiner mattering more:
+same collecting area. The same comparison for CSHELL, where the 22 e$^-$ read noise and the 0.5
+e$^-$/s dark current, both over a 36-pixel extraction aperture, are large, shows the fiber combiner
+mattering more:
 """),
 code("""fig, ax = plt.subplots(figsize=(7, 4.5))
 for fiber, combine in (("18um", "fiber"), ("18um", "independent"), ("50um", "independent")):
     lim = [LFASTETC("cshell_r18000", telescope=Telescope(n_telescopes=int(n), fiber=fiber, combine=combine),
-                    wavelength_min_nm=1550, wavelength_max_nm=1560).limiting_magnitude(kstar, 900, 10)
+                    wavelength_min_nm=lo, wavelength_max_nm=hi).limiting_magnitude(kstar, 900, 10)
            for n in ns]
     ax.plot(ns, lim, marker='o', ms=3, label=f"{fiber}, {combine}")
 ax.set_xscale('log'); ax.invert_yaxis()
 ax.set_xlabel("Number of telescopes"); ax.set_ylabel("Limiting H (SNR=10/resel, 900 s)")
-ax.axvline(20, color='0.4', ls='--'); ax.legend(fontsize=8); ax.set_title("CSHELL R=18k, 1.55-1.56 um", fontsize=9)
+for n in (20, 100, 200):
+    ax.axvline(n, color='0.4', ls='--')
+ax.legend(fontsize=8); ax.set_title(f"CSHELL R=18k, one setting {lo:.1f}-{hi:.1f} nm", fontsize=9)
 equivalent_diameter_axis(ax);"""),
 md("""
 For the common case of one configuration and several exposure times there is a one-call helper,
@@ -358,8 +417,8 @@ The bundled SkyCalc table has the moon up (45 degrees away, 45 degrees altitude)
 moonlight is about 57% of the 540 to 560 nm sky, giving V ~ 20.5 mag per square arcsecond, about
 one magnitude brighter than dark Kitt Peak (V ~ 21.7 to 22.0 at zenith, Neugent & Massey 2010).
 `Sky(scale=0.4)` is a crude dark-time estimate. It scales the airglow lines too, which is wrong
-in detail; generate a proper SkyCalc table for real planning. The Bench becomes sky limited at
-V > ~19.5, so this matters for the faint end and not at all for bright stars.
+in detail; generate a proper SkyCalc table for real planning. In a 15-minute exposure the sky
+matches a V ~ 19 star in 500-650 nm, so this matters for the faint end and not at all for bright stars.
 """),
 code("""for label, sky in (("grey (bundled)", Sky()), ("dark (x0.4)", Sky(scale=0.4))):
     e = LFASTETC("bench_r1800", n_telescopes=20, sky=sky)
@@ -410,12 +469,14 @@ Assumptions, all of them changeable in the first code cell:
   The M dwarf is included only for the photon budget. M-dwarf metallicities at R ~ 1800 do not
   come from Mg b or Na D, and LAMOST M-dwarf [Fe/H] values are poor, so read that row as a
   throughput number and nothing more.
+* Per-target overhead (slew, acquisition, read-out) of 10 min, a realistic allowance for a new pointing of the array.
 """),
 code(PREAMBLE),
 code("""bench = LFASTETC("bench_r1800", n_telescopes=20)
 stars = {"G dwarf 5800 K": 5800, "K dwarf 4500 K": 4500, "M dwarf 3500 K": 3500}
 mags = np.linspace(9, 20, 45)
-window = (500, 560)"""),
+window = (500, 560)
+OVERHEAD = 600.0    # s per target (slew, acquisition, read-out)"""),
 md("""
 ## Exposure time to reach the SNR thresholds
 
@@ -434,14 +495,34 @@ for ax, snr_t in zip(axes, (30, 75)):
     for h, txt in ((15, "15 min"), (60, "1 h")):
         ax.axhline(h, color='0.4', ls='--'); ax.text(mags[0], h*1.1, txt, fontsize=8, color='0.4')
 axes[0].set_ylabel("Exposure time (min)"); axes[0].legend();"""),
-md("## Survey depth: limiting magnitude per exposure length"),
-code("""for exp in (300, 900, 3600):
-    row = []
-    for label, teff in stars.items():
-        m30 = bench.limiting_magnitude(Source.blackbody(teff, 0, "V"), exp, 30, wavelength=window)
-        m75 = bench.limiting_magnitude(Source.blackbody(teff, 0, "V"), exp, 75, wavelength=window)
-        row.append(f"{label.split()[0]}: V<{m30:.1f} (SNR30) / V<{m75:.1f} (SNR75)")
-    print(f"{exp:5d} s  " + " | ".join(row))"""),
+md("""## Survey depth: limiting magnitude per exposure length
+
+The previous section asked how long a star of a given magnitude takes; this one turns the question
+around and asks how faint we can go for a fixed time budget per star. The *limiting magnitude* is the
+faintest V at which the median SNR per resel over 500-560 nm reaches the target in that exposure.
+It is solved analytically from the noise equation, one bin at a time, so no grid of magnitudes is
+needed.
+
+The table gives the limiting magnitude for both SNR targets (30 for ~0.1 dex, 75 for ~0.05 dex) and
+all three stars, in 5, 15 and 60 minutes of on-target time. Read it as: *with this exposure, every
+star brighter than this V gets a metallicity at this precision.*"""),
+code("""exps = (300, 900, 3600)
+depth = pd.DataFrame({(label.split()[0], f"SNR {snr_t}"): [bench.limiting_magnitude(Source.blackbody(teff, 0, "V"), t, snr_t, wavelength=window) for t in exps]
+                      for label, teff in stars.items() for snr_t in (30, 75)},
+                     index=pd.Index([t // 60 for t in exps], name="exposure (min)"))
+depth.round(1)"""),
+md("""With 20 telescopes a G dwarf reaches the ~0.1 dex target at V ~ 16.9 in 15 min and V ~ 18.2 in
+1 h; the ~0.05 dex target stops ~1.8 mag brighter. As before, the three stars differ by at most
+~0.2 mag, and only the SED matters, so the 4500 K column applies equally to K giants.
+
+In distance (ignoring extinction), V = 16.9 and 18.2 correspond to ~2.7 and ~4.7 kpc for a G dwarf
+($M_V \\approx +4.8$), and V = 16.9 and 18.1 to ~19 and ~33 kpc for a K giant
+($M_V \\approx +0.5$): dwarfs probe the thick disc, giants reach into the halo.
+
+How the depth grows with time tells us what limits it. Going from 5 to 15 min (x3 in time) gains ~1.1 mag
+and from 15 to 60 min (x4) ~1.25 mag. That lies between the source-limited scaling
+($2.5\\log_{10} t$: 1.2 and 1.5 mag) and the sky-limited one ($1.25\\log_{10} t$: 0.6 and 0.75 mag),
+closer to the former: at these magnitudes the star's own photon noise still dominates."""),
 md("""
 ## Where the information comes from: SNR across the band
 
@@ -459,67 +540,123 @@ for w, name in ((422.7, "Ca I"), (430.8, "G band"), (486.1, "H-beta"), (518.4, "
     ax.axvline(w, color='0.6', ls=':', lw=0.8); ax.text(w, ymax*0.9, name, fontsize=7, rotation=90, va='top')
 ax.set_xlabel("Wavelength (nm)"); ax.set_ylabel("SNR per resel"); ax.set_title("V = 16, 900 s, 20 telescopes", fontsize=9)
 ax.legend(fontsize=8);"""),
-md("""
-## Survey throughput
+md("""## Survey throughput
 
-Stars per 8 hour night as a function of magnitude for the SNR 30 target, with 2 minutes of
-overhead per target. All fibers point at one star, so there is no multiplexing: this is a
-one-target-at-a-time instrument.
-"""),
-code("""overhead = 120.0
-t = bench.exptime_vs_mag(Source.blackbody(5800, 0, "V"), mags, snr=30, wavelength=window)
-n_per_night = 8*3600 / (t + overhead)
+LFAST observes one star at a time, since all telescopes point at the same target. The number of
+stars per night therefore follows directly from what each star costs: its exposure time plus a fixed
+overhead for slewing, acquisition and read-out,
+
+$$N_{\\rm night} = \\frac{8\\ \\mathrm{h}}{t_{\\rm exp}(V) + t_{\\rm overhead}}.$$
+
+The plot shows this for G dwarfs at the ~0.1 dex target (SNR = 30 per resel), with 20 telescopes and
+a 10-minute overhead. Two regimes frame the curve:
+
+* **Bright stars** ($t_{\\rm exp} \\ll t_{\\rm overhead}$): the overhead sets the yield, and the curve is flat.
+* **Faint stars** ($t_{\\rm exp} \\gg t_{\\rm overhead}$): the exposure sets the yield, and it falls steeply with magnitude."""),
+code("""t = bench.exptime_vs_mag(Source.blackbody(5800, 0, "V"), mags, snr=30, wavelength=window)
+n_per_night = 8*3600 / (t + OVERHEAD)
 fig, ax = plt.subplots(figsize=(7, 4))
 ax.plot(mags, n_per_night)
 ax.set_yscale('log'); ax.set_xlabel("V magnitude"); ax.set_ylabel("Stars per 8 h night (SNR=30)")
-ax.set_title("G dwarfs, Bench R~1800, 20 telescopes, 2 min overhead", fontsize=9);"""),
-md("## Array size and survey depth at SNR 30 in 15 minutes"),
-code("""for n in (5, 10, 20, 40, 80):
-    e = LFASTETC("bench_r1800", n_telescopes=n)
-    print(f"N={n:3d}: V_lim(SNR=30, 15 min) = {e.limiting_magnitude(Source.blackbody(5800,0,'V'), 900, 30, wavelength=window):.2f}")"""),
+ax.set_title(f"G dwarfs, Bench R~1800, 20 telescopes, {OVERHEAD/60:.0f} min overhead", fontsize=9);"""),
+md("""Bright stars are overhead-limited: at V ~ 13 the exposure is well under a minute, so the night yields
+at most 48 stars (8 h / 10 min) whatever the array size, and a bigger array buys nothing. The
+exposure equals the overhead at V ~ 16.5; fainter than that the exposure dominates, and the yield
+falls to ~18 per night at V = 17 and ~8 at V = 18. A larger array helps only in this faint regime,
+and a faster acquisition helps most for bright targets. With one target at a time LFAST cannot compete with multiplexed surveys (LAMOST observes
+~4000 stars per pointing) on numbers; its niche is depth on individually selected targets (see the
+Galactic-archaeology notebook)."""),
+md("""## Array size and survey depth at SNR 30 in 15 minutes
+
+The 20-telescope prototype is the nominal array; 100 and 200 telescopes are two possible upgrades.
+In every case the fibers from all telescopes are combined into **one** spectrograph input
+(`Telescope(..., telescopes_per_input=None)`). The terms in the noise budget therefore do not all
+scale with the number of telescopes N in the same way:
+
+| term | scales with N as | why |
+|---|---|---|
+| source signal | $N$ | every telescope collects light from the star |
+| sky | $N$ | every telescope has its own fiber, and each fiber sees its own patch of sky: 20 fibers bring 20x the sky of one |
+| read noise, dark current | 1 | there is one spectrograph, read out once |
+
+Going from 20 to N telescopes multiplies the signal and the sky by N/20 and leaves the detector terms
+unchanged. How much depth that buys depends on which term dominates the noise:
+
+* source-dominated: $\\Delta m = 2.5\\log_{10}(N/20)$, i.e. 1.75 mag for 100 telescopes and 2.5 mag for 200;
+* sky-dominated: half that, $1.25\\log_{10}(N/20)$, because the sky noise grows along with the signal;
+* detector-dominated: the full $2.5\\log_{10}(N/20)$ again, because the read noise does not grow at all."""),
+code("""rows = {}
+for n in (20, 100, 200):
+    e = LFASTETC("bench_r1800", telescope=Telescope(n_telescopes=n, telescopes_per_input=None))
+    rows[n] = {"D_eq (m)": e.telescope.equivalent_diameter_m,
+               "V_lim (SNR=30, 15 min)": e.limiting_magnitude(Source.blackbody(5800, 0, 'V'), 900, 30, wavelength=window)}
+trade = pd.DataFrame(rows).T.rename_axis("N telescopes")
+trade["gain vs N=20 (mag)"] = trade["V_lim (SNR=30, 15 min)"] - trade.loc[20, "V_lim (SNR=30, 15 min)"]
+trade.round(2)"""),
+md("""The gain (+1.4 mag for 100 telescopes, +2.0 for 200) sits between the two limits. At the
+200-telescope limit (V ~ 18.9) the star and the sky each contribute ~1800 e$^-$ per resel in 15 min,
+while the detector adds only ~70 e$^{-2}$ of variance, so for the Bench the detector noise hardly matters
+either way: feeding each 20-telescope array into its own input instead would cost only ~0.1 mag
+here. It matters much more for CSHELL, whose read noise is 6x higher.
+
+Caveat: merging 100-200 telescopes into one spectrograph input needs a larger output fiber or a
+second combiner stage. A larger fiber image covers more detector pixels per resel, which raises the
+detector noise; the ETC keeps the pixels per resel fixed, so these numbers are an upper limit on the
+gain."""),
 md("""
 ## Things to try
 
 * Move the metric window to the G band (425 to 435 nm) and compare the depth. This is the window
   that matters for carbon-enhanced metal-poor stars.
-* Switch to the `bench_1200_28p7_o2` preset (R ~ 3700 around 400 nm). Does the higher resolution
+* Switch to the `bench_1200_28p7_o2` preset (R ~ 7600 around 400 nm). Does the higher resolution
   pay for itself in exposure time at fixed SNR per resel?
 """),
 ])
 
 # --------------------------------------------------------------------------- 04
 nb("04_tdamm_followup", [
-md("""
-# Science case: transient classification for time-domain and multi-messenger follow-up
+md("""# Science case: TDAMM follow-up (transient classification)
 
-Spectroscopic follow-up of transients is mostly classification: a low-SNR spectrum, rebinned to
-R ~ 100 to 300, that tells a SN Ia from a SN II, a kilonova from an afterglow, or a tidal
-disruption event from an AGN flare. For LFAST the question is how faint a transient can be
-classified in a given exposure, and how soon after the alert.
+Time-domain and multi-messenger (TDAMM) follow-up with a spectrograph is about
+**classification** and **follow-up**: we will focus on the former in this notebook.
+Classification typically uses a low-SNR spectrum, rebinned to R ~ 100-300, that can distinguish a SN Ia from a
+SN II or a TDE from an AGN flare. The relevant question for LFAST
+is: *what is the faint limit to classify a transient in a given exposure?* All times below are
+on-target integration; slew, acquisition and other response-time overheads are not modelled.
 
-Assumptions, changeable in the first code cell:
+**Assumptions used in this notebook**:
 
-* Classification needs SNR 5 per rebinned element at $R_{bin}$ = 300 across 450 to 650 nm, the
-  regime low-resolution classifiers are built for (SEDM: Blagorodnova et al. 2018; 4MOST TiDES:
+* Classification needs SNR ~ 5 per **rebinned** element at R_bin = 300 across 450-650 nm, the
+  regime low-resolution classifiers are designed for (SEDM: Blagorodnova et al. 2018; 4MOST/TiDES:
   Swann et al. 2019). Co-adding $k = R/R_{bin}$ adjacent resels of equal SNR raises the SNR by
-  exactly $\\sqrt{k}$ in this noise model, because every variance term scales with the number of
-  pixels.
-* Transient SEDs: a 12,000 K blackbody (young SN or shock cooling), a 6000 K blackbody (SN Ia
-  near peak), a 3500 K blackbody (late kilonova or late SN II), and a power law
-  $F_\\nu \\propto \\nu^{-0.7}$ for a GRB afterglow. Magnitudes are R (Cousins; within 0.1 to 0.2
-  mag of SDSS r for these colours), so the SED colour matters inside the 450 to 650 nm window.
+  $\\sqrt{k}$ in this noise model (every variance term scales with the number of pixels).
+* 60 minutes is taken as the practical upper limit on the time spent on one classification spectrum.
+* Instrument mode: one Bench setting, the R ~ 1800 preset (`bench_r1800`, 412-686 nm), with
+  classification over 450-650 nm. This is only one of the Bench's grating and order settings
+  (https://www.wiyn.org/Instruments/wiynbench.html); others cover redder or wider ranges at different
+  resolution and ship as `bench_*` presets (`list_instruments()`). Several statements below about the 450-650 nm window are properties of this mode,
+  and exploring other modes is left as an exercise (see the end of the notebook).
+* Transient SEDs (blackbodies): a hot 25,000 K source (young SN II / TDE), a 10,000 K source
+  (SN Ia near peak, where $B-V \\approx 0$; Phillips et al. 1999) and a red 3500 K source (kilonova at ~3 d, luminous red
+  nova). Their magnitudes are **R** (Cousins, Vega; within ~0.1-0.2 mag of SDSS r for these colours),
+  so the SED colour matters in the 450-650 nm window.
+* GRB afterglow: a power law $F_\\nu \\propto \\nu^{-0.7}$ (mean optical slope 0.66; Kann et al. 2010), fading as $t^{-\\alpha}$ with $\\alpha \\approx 1$.
+  Afterglow magnitudes are **AB**, as is usual in the GRB literature. For afterglows the metric is a
+  redshift, not a classification (see that section).
 * Kilonova: AT2017gfo-like, r = 17.3 at 0.5 d at 40 Mpc, fading 0.95 mag per day in r over the
   first 5 days (Drout et al. 2017, Table S2), cooling from ~10,000 K at 0.5 d to ~5000 K at
-  1.5 d and approaching ~2500 K after ~5 d (Drout et al. 2017; Shappee et al. 2017).
-* Sky: the bundled grey-time table (moon up). Dark time is 0.3 to 0.5 mag deeper at the faint
-  end (notebook 02).
-"""),
+  1.5 d and approaching ~2500 K after ~5 d (Drout et al. 2017; Shappee et al. 2017). We only use the
+  first 5 days, where this description holds.
+* The sky background assumption is grey time (moon up); dark-time depths are ~0.3-0.5 mag deeper at the
+  faint end (see the sensitivity-map notebook). Grey time is a fair average for target-of-opportunity
+  follow-up, where the moon phase cannot be chosen."""),
 code(PREAMBLE),
 code("""# ---- knobs ----
 N_TEL = 20
 WINDOW = (450, 650)          # nm, classification window
 R_BIN = 300                  # rebinned resolution for classification
 SNR_CLASS = 5                # SNR per R_BIN element needed to classify
+EXP_MAX = 3600               # s, practical upper limit for one classification spectrum
 BAND = "R"                   # magnitudes in Cousins R (~ SDSS r)
 
 bench = LFASTETC("bench_r1800", n_telescopes=N_TEL, wavelength_min_nm=WINDOW[0], wavelength_max_nm=WINDOW[1])
@@ -527,42 +664,73 @@ k = bench.instrument.resolving_power / R_BIN   # resels per rebinned element
 snr_resel_needed = SNR_CLASS / np.sqrt(k)      # SNR per native resel that gives SNR_CLASS at R_BIN
 print(f"{k:.1f} resels per R={R_BIN} bin -> need SNR {snr_resel_needed:.2f} per resel")
 
-seds = {"blue 12,000 K": Source.blackbody(12000, 0, BAND),
-        "SN Ia-like 6000 K": Source.blackbody(6000, 0, BAND),
+seds = {"hot 25,000 K": Source.blackbody(25000, 0, BAND),
+        "SN Ia 10,000 K": Source.blackbody(10000, 0, BAND),
         "red 3500 K": Source.blackbody(3500, 0, BAND),
-        "afterglow Fnu~nu^-0.7": Source.powerlaw(-0.7, 0, BAND, system="AB")}"""),
-md("""
-## Exposure time to classify versus magnitude
+        "afterglow (AB)": Source.powerlaw(-0.7, 0, BAND, system="AB")}"""),
+md("""## Exposure time to classify versus magnitude
 
-At the same R magnitude the blue SED reaches deepest and the red one shallowest, by about 0.8
-mag. The magnitude is fixed at 641 nm, at the red edge of the classification window, so a blue
-SED puts more light into 450 to 650 nm than a red one, and that outweighs the lower throughput
-in the blue. The afterglow power law behaves like the blue blackbody.
-"""),
+The curves give the integration time needed to reach the classification SNR for each SED. The
+reference magnitudes are the Argus Array detection depths (g, 5 sigma, dark time; science
+requirements from the Argus specifications, argus.unc.edu/specifications; Law et al. 2022), since
+Argus is (one of) the discovery engine(s) LFAST would follow up:
+
+* **g = 20.0**, the single-epoch (1-minute) depth;
+* **g = 21.5**, the 15-minute co-add depth.
+
+These are detection limits, not classification limits, and they are in g (AB) while the curves are in
+R (Vega). For SN-like colours near peak $g \\approx r$, and R (Vega) is ~0.2 mag brighter than r (AB);
+both offsets are ignored here."""),
 code("""mags = np.linspace(14, 22, 41)
 fig, ax = plt.subplots(figsize=(7.5, 4.5))
 for label, src in seds.items():
     t = bench.exptime_vs_mag(src, mags, snr=snr_resel_needed, wavelength=WINDOW)
-    ax.plot(mags, t/60, label=label)
+    ax.plot(mags, t/60, label=label, ls='--' if 'afterglow' in label else '-')
 ax.set_yscale('log'); ax.set_xlabel(f"{BAND} magnitude"); ax.set_ylabel("Exposure time (min)")
-ax.axhline(30, color='0.4', ls='--'); ax.text(14.1, 33, "30 min", fontsize=8, color='0.4')
-ax.axhline(5, color='0.55', ls=':'); ax.text(14.1, 5.5, "5 min", fontsize=8, color='0.55')
-ax.legend(fontsize=8); ax.set_title(f"Classification: SNR={SNR_CLASS} per R={R_BIN} bin, {WINDOW[0]}-{WINDOW[1]} nm, {N_TEL} telescopes", fontsize=9);"""),
-md("## Classification depth versus exposure time"),
-code("""for exp in (300, 900, 1800, 3600):
-    lims = [f"{label}: {BAND}<{bench.limiting_magnitude(src, exp, snr_resel_needed, wavelength=WINDOW):.1f}"
-            for label, src in seds.items()]
-    print(f"{exp:5d} s   " + " | ".join(lims))"""),
-md("""
-## Kilonova: how many days after merger can we still classify?
+for tmin, ls, c in ((60, '-', '0.4'), (30, '--', '0.4'), (5, ':', '0.55')):
+    ax.axhline(tmin, color=c, ls=ls, lw=0.8); ax.text(14.1, tmin*1.1, f"{tmin} min", fontsize=8, color=c)
+ARGUS = {"Argus 1 min": 20.0, "Argus 15 min": 21.5}   # g, 5 sigma, dark time (science requirements)
+for txt, mag in ARGUS.items():
+    ax.axvline(mag, color='0.5', ls='-.', lw=0.8); ax.text(mag-0.08, 0.5, txt, fontsize=8, color='0.4', rotation=90, ha='right', va='top')
+ax.legend(fontsize=8, loc='upper left', bbox_to_anchor=(0.0, 0.52))
+ax.set_title(f"Classification: SNR={SNR_CLASS} per R={R_BIN} bin, {WINDOW[0]}-{WINDOW[1]} nm, {N_TEL} telescopes", fontsize=9)
 
-AT2017gfo at 40 Mpc: r = 17.3 at 0.5 d, fading 0.95 mag per day in r, cooling 10,000 K to 5000 K
-to 2500 K at 0.5, 1.5 and 5.5 d (linear ramps). We scale to other distances with the distance
-modulus and ask for a classification spectrum (SNR 5 at R = 300) in a 30 minute exposure. The
-blackbody is normalised in R, so the cooling changes how much of the light falls inside the
-classification window.
-"""),
-code("""days = np.linspace(0.5, 7, 27)
+t_ref = bench.exptime_vs_mag(seds["SN Ia 10,000 K"], list(ARGUS.values()), snr=snr_resel_needed, wavelength=WINDOW)
+print("SN Ia: " + ";  ".join(f"at {txt} depth ({mag}): {t/60:.1f} min" for (txt, mag), t in zip(ARGUS.items(), t_ref)))"""),
+md("""With 20 telescopes a SN Ia-like SED at the Argus 1 minute depth needs about 7 minutes, and one at the
+15-minute co-add depth needs about an hour, right at the classification budget. The nominal array
+could therefore classify what Argus finds in single epochs and the bright end of its 15-minute co-adds.
+Because transient counts rise towards fainter magnitudes, a large share of the Argus detections
+will sit close to these limits."""),
+md("""## Classification depth versus exposure time
+
+The table gives the faintest R magnitude that can be classified in 5, 15, 30 and 60 minutes (i.e. assuming SNR=5)."""),
+code("""exps = (300, 900, 1800, 3600)
+depth = pd.DataFrame({label: [bench.limiting_magnitude(src, t, snr_resel_needed, wavelength=WINDOW) for t in exps]
+                      for label, src in seds.items()},
+                     index=pd.Index([t // 60 for t in exps], name="exposure (min)"))
+depth.round(1)"""),
+md("""Note:
+* **Exposure time.** Doubling the exposure from 30 to 60 min gains only ~0.4 mag. That is the
+  background-limited scaling ($\\Delta m = 1.25\\log_{10} 2 \\approx 0.38$): at these magnitudes the sky
+  and detector noise dominate, so SNR grows as $\\sqrt{t}$ rather than as $t$. The step from 5 to
+  15 min is somewhat steeper because read noise still matters in the shortest exposures. Going
+  beyond 60 min buys little: the next half-magnitude would cost another ~1.5 h."""),
+md("""## How many days after merger can we still classify kilonovae?
+
+Assumptions (AT2017gfo-like, at 40 Mpc):
+* r = 17.3 at 0.5 d,
+* fading 0.95 mag/day in r,
+* cooling 10,000 K -> 5000 K -> 2500 K at 0.5, 1.5 and 5.5 d (linear ramps);
+
+We stop at 5 d, the end of the range this light curve describes. 
+We scale to other distances with the distance modulus and ask for a classification
+spectrum (SNR=5 at R=300). 
+
+40 Mpc is GW170817 itself; for reference the LIGO binary-neutron-star
+range is 150-170 Mpc in O4 and 225-295 Mpc planned for O5 (the classification horizon versus
+array size is in the LSST-era time-domain notebook). The blackbody is normalised in R."""),
+code("""days = np.linspace(0.5, 5, 91)
 def kn_mag(d, D_Mpc):
     return 17.3 + 0.95*(d-0.5) + 5*np.log10(D_Mpc/40)
 def kn_teff(d):
@@ -571,32 +739,95 @@ def kn_teff(d):
 fig, ax = plt.subplots(figsize=(7.5, 4.5))
 for D in (40, 100, 200):
     t_needed = np.array([bench.exptime_vs_mag(Source.blackbody(kn_teff(d), 0, BAND), [kn_mag(d, D)],
-                                              snr=snr_resel_needed, wavelength=WINDOW)[0] for d in days])
-    ax.plot(days, t_needed/60, label=f"{D} Mpc")
-ax.axhline(30, color='0.4', ls='--'); ax.text(0.6, 33, "30 min", fontsize=8, color='0.4')
-ax.set_yscale('log'); ax.set_xlabel("Days after merger"); ax.set_ylabel("Exposure for classification (min)")
-ax.legend(title="distance"); ax.set_title("AT2017gfo-like kilonova, Bench, 20 telescopes", fontsize=9);"""),
-md("""
-## Rapid response: a fading afterglow
+                                              snr=snr_resel_needed, wavelength=WINDOW)[0] for d in days]) / 60
+    ax.plot(days, t_needed, label=f"{D} Mpc")
+    last = {tmin: days[t_needed <= tmin].max() if (t_needed <= tmin).any() else np.nan for tmin in (30, 60)}
+    print(f"{D:3d} Mpc: classifiable until {last[30]:.1f} d (30 min) / {last[60]:.1f} d (60 min)")
+ax.axhline(60, color='0.4', lw=0.8); ax.text(0.6, 66, "60 min", fontsize=8, color='0.4')
+ax.axhline(30, color='0.4', ls='--', lw=0.8); ax.text(0.6, 33, "30 min", fontsize=8, color='0.4')
+ax.set_yscale('log'); ax.set_ylim(0.2, 1e3); ax.set_xlabel("Days after merger"); ax.set_ylabel("Exposure for classification (min)")
+ax.legend(title="distance"); ax.set_title(f"AT2017gfo-like kilonova, Bench, {N_TEL} telescopes", fontsize=9);"""),
+md("""A GW170817-like event at 40 Mpc stays classifiable for almost four days; at 100 Mpc the
+window is about two nights, and at 200 Mpc (O5-like distances) only the first night, in this mode.
+The kilonova fades by ~1 mag/day and also cools, moving its flux redward of the 450-650 nm window.
+A redder Bench setting would follow it further; how much longer that keeps a kilonova classifiable
+is left as an exercise (see the end of the notebook)."""),
+md("""## GRB afterglows: time to a redshift
 
-GRB afterglows fade as $F \\propto t^{-\\alpha}$ with $\\alpha \\sim 1$. For an afterglow at
-R = 17 (AB) one hour after the burst, the plot shows how the time needed to classify grows with
-the delay before LFAST is on target. A fiber-fed array with no instrument changes can in
-principle respond within minutes, which is the regime where the curve is flat.
-"""),
-code("""delay_h = np.logspace(0, np.log10(48), 25)
-mag_t = 17 + 2.5*1.0*np.log10(delay_h/1.0)
-t_cls = bench.exptime_vs_mag(seds["afterglow Fnu~nu^-0.7"], mag_t, snr=snr_resel_needed, wavelength=WINDOW)
-fig, ax = plt.subplots(figsize=(7, 4))
-ax.plot(delay_h, t_cls/60)
-ax.set_xscale('log'); ax.set_yscale('log'); ax.set_xlabel("Hours after burst"); ax.set_ylabel("Exposure for classification (min)")
-ax.set_title("Afterglow R=17 at 1 h, alpha=1, Bench, 20 telescopes", fontsize=9);"""),
-md("## Array size and classification depth in 30 minutes"),
-code("""for n in (5, 10, 20, 40, 80):
+For an afterglow the gamma-ray or X-ray trigger typically already broadly indicates what the transient is; what the
+spectrum adds is the **redshift**. It comes from absorption lines that the host-galaxy gas and any
+intervening absorbers imprint on the afterglow continuum: Mg II 2796/2803 and Fe II at z <~ 2 and,
+at higher redshift, the C IV and Si II lines, Ly-alpha / damped Ly-alpha absorption and the Ly-alpha
+forest (Fynbo et al. 2009). Between them these put strong lines in the 450-650 nm window for
+z ~ 0.6-4; other Bench settings shift or widen that redshift range. The strong lines have rest-frame equivalent widths of ~1-4 A (Mg II doublet ~3.8 A, C IV ~2.4 A, Fe II 2600 ~1.8 A, Si II 1527 ~1.0 A; de Ugarte Postigo et al. 2012), and the observed
+equivalent width is larger by (1+z). At R = 1800 a resel is ~3 A at 550 nm, so a continuum SNR of
+~10 per **native** resel (no rebinning) measures an equivalent width to ~0.3 A and detects Fe II 2600
+at z = 1 (3.6 A observed) at ~10 sigma. That is the metric used here.
+
+Afterglows fade as $F \\propto t^{-\\alpha}$ with $\\alpha \\approx 1$. The curves are for afterglows at
+R = 17, 19 and 21 (AB) one hour after the burst. For afterglows detected within the first hour the
+R magnitude at 1 h is distributed around R ~ 18.4 with a width of ~1.6 mag (Wang et al. 2013, Vega;
+AB is ~0.2 mag fainter), so these curves span roughly +-1.5 sigma of that population. Optically dark
+bursts are fainter still and are not reachable. The source is held at its
+brightness at the start of the exposure, which is optimistic once the exposure becomes comparable
+to the delay."""),
+code("""SNR_Z = 10                    # SNR per native resel for an absorption-line redshift
+delay_h = np.logspace(np.log10(0.25), np.log10(48), 40)
+fig, ax = plt.subplots(figsize=(7.5, 4.5))
+for m1h in (17, 19, 21):
+    mag_t = m1h + 2.5*1.0*np.log10(delay_h/1.0)
+    t_z = bench.exptime_vs_mag(seds["afterglow (AB)"], mag_t, snr=SNR_Z, wavelength=WINDOW)
+    ax.plot(delay_h, t_z/60, label=f"R = {m1h} at 1 h")
+ax.axhline(60, color='0.4', lw=0.8); ax.text(0.27, 66, "60 min", fontsize=8, color='0.4')
+ax.axhline(30, color='0.4', ls='--', lw=0.8); ax.text(0.27, 33, "30 min", fontsize=8, color='0.4')
+ax.set_xscale('log'); ax.set_yscale('log'); ax.set_ylim(0.3, 1e3)
+ax.set_xlabel("Hours after burst (start of exposure)"); ax.set_ylabel("Exposure for a redshift (min)")
+ax.legend(fontsize=8)
+ax.set_title(f"Afterglow, alpha=1, SNR={SNR_Z} per resel at R=1800, Bench, {N_TEL} telescopes", fontsize=9);"""),
+md("""A bright afterglow (R = 17 at 1 h) gives a redshift in a couple of minutes at one hour and is
+still within an hour's integration up to ~11 h after the burst. An R = 19 afterglow needs to be
+observed within ~2 h of the burst, and an R = 21 afterglow is out of reach of the nominal array except in
+the first ~20 minutes."""),
+md("""## Array size trade for TDAMM depth (60 min, classification SNR)
+
+The 20-telescope prototype is the nominal array; 100 and 200 telescopes are two possible upgrades.
+In this model the telescopes are fiber-combined in groups of 20 (one combiner per array, as in
+`Telescope(telescopes_per_input=20)`); each combiner output is a separate spectrograph input,
+read out separately and co-added. Source and sky photons therefore grow with N, and so do dark
+current and read noise (with the number of inputs, N/20). At the faint end every noise term grows in
+proportion to the signal, so SNR $\\propto \\sqrt{N}$ and the depth improves by
+$\\Delta m = 1.25\\log_{10}(N/20)$: about 0.9 mag for 100 telescopes and 1.25 mag for 200. That is half
+the $2.5\\log_{10}(N/20)$ that the collecting area alone would suggest. A single combiner feeding all
+N telescopes into one input would do better (see the array-scaling notebook). The table gives the
+60-minute classification depth for each SED."""),
+code("""rows = {}
+for n in (20, 100, 200):
     e = LFASTETC("bench_r1800", n_telescopes=n, wavelength_min_nm=WINDOW[0], wavelength_max_nm=WINDOW[1])
-    print(f"N={n:3d}: classification depth in 30 min, 6000 K: {BAND}<{e.limiting_magnitude(seds['SN Ia-like 6000 K'], 1800, snr_resel_needed, wavelength=WINDOW):.2f}")"""),
-md("""
-## Things to try
+    rows[n] = {"D_eq (m)": e.telescope.equivalent_diameter_m, "inputs": e.telescope.n_inputs,
+               **{label: e.limiting_magnitude(src, EXP_MAX, snr_resel_needed, wavelength=WINDOW) for label, src in seds.items()}}
+trade = pd.DataFrame(rows).T.rename_axis("N telescopes")
+trade["inputs"] = trade["inputs"].astype(int)
+trade["gain vs N=20 (mag)"] = trade["SN Ia 10,000 K"] - trade.loc[20, "SN Ia 10,000 K"]
+trade.round(2)"""),
+md("""Going from 20 to 200 telescopes pushes the 60-minute SN Ia classification depth from
+R ~ 21.5, at the Argus 15-minute co-add depth, to R ~ 22.8, about a magnitude beyond it **assuming the Bench spectrograph**. For the kilonova, 1.25 mag is a factor ~1.8 in distance, so the
+200-telescope array reaches at 200 Mpc roughly what the nominal array reaches at ~110 Mpc."""),
+md("""## Things to try
+
+**Other Bench modes.** Everything above uses one Bench setting. The Bench offers many grating and
+order combinations (https://www.wiyn.org/Instruments/wiynbench.html), from coarse gratings covering
+~500 nm in one setting to high-resolution orders covering ~25 nm, and they ship as `bench_*` presets
+(`list_instruments()`). Redder settings suit cool sources (later phases in kilonovae, red transients)
+and higher-redshift afterglow lines; bluer ones suit hot, young transients. Suggestions:
+
+* how many more days a kilonova stays classifiable in a redder mode;
+* how the colour ordering of the SEDs changes;
+* which afterglow redshifts each setting covers.
+
+The `bench_*` presets scale the spectrograph efficiency from the WIYN table, but the detector QE is
+a flat 0.75 placeholder, so results at the red end are indicative.
+
+**Other knobs.**
 
 * Raise `SNR_CLASS` to 10, the level at which a SN Ia subtype can be told apart. How much depth
   does that cost?
@@ -629,7 +860,7 @@ Assumptions, changeable in the first code cell:
   peak depth, so the measured depth is the mean of that profile over the `n_core` window (0.79 at
   R = 43k, 0.59 at R = 18k). Instrumental broadening is not added on top of that.
 * Individual exposures of 300 s, split into reads only if the brightest pixel would saturate
-  (`full_well` from the preset, 40 ke$^-$ inferred from the IRTF page, with an 80% margin).
+  (`full_well` from the preset, the 55 ke$^-$ 1%-linear well of Brown et al. 2026, with an 80% margin).
 * Transit duration 2 h (24 in-transit exposures) and the same out of transit. The real durations
   are 1.8 h for HD 189733 b and 2.7 h for WASP-107 b.
 * Not included, each a 20 to 40% effect: the planet signal sits in the stellar He I line core,
@@ -726,7 +957,8 @@ ax.set_title("CSHELL R=43k, 20 telescopes", fontsize=9);"""),
 md("""
 ## Why read noise and the array size matter here
 
-CSHELL's 22 e$^-$ read noise and 5 e$^-$/s dark-plus-background current are large. With all fibers combined the
+CSHELL's 22 e$^-$ read noise and 0.5 e$^-$/s dark current, over a 15-pixel extraction aperture at
+R = 43k, are large. With all fibers combined the
 detector terms are paid once per exposure; with independent spectra they are paid $N$ times.
 """),
 code("""ns = [5, 10, 20, 40, 80]

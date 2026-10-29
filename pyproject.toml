@@ -23,7 +23,8 @@ docs = [
   "sphinx>=7", "sphinx-rtd-theme>=2.0", "nbsphinx",
   "sphinx-copybutton", "myst-parser", "ipykernel",
 ]   # plus the pandoc binary on PATH
-dev = ["pytest", "nbformat", "nbclient", "ipykernel", "jupyter"]
+notebooks = ["pandas>=2.0", "jinja2>=3.0"]   # result tables in the example notebooks (pandas Styler needs jinja2)
+dev = ["pytest", "nbformat", "nbclient", "ipykernel", "jupyter", "pandas>=2.0", "jinja2>=3.0"]
 
 [project.scripts]
 lfast-etc-web = "lfast_etc.web.app:main"
