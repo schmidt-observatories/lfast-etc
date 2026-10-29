@@ -13,3 +13,4 @@ docs/_generated/
 .pytest_cache/
 memo/
 input/
+report/

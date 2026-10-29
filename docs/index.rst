@@ -91,7 +91,6 @@ Contents
    api
    changelog
    contributing
-   review_report
 
 Indices and tables
 ------------------
