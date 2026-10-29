@@ -11,7 +11,7 @@ def test_regression_against_reference_notebook():
     # the reference evaluates the Bench over the whole throughput range, so widen the preset bandpass
     wide = Instrument.from_preset("bench_r1800", wavelength_min_nm=400, wavelength_max_nm=1800,
                                   fiber_image_px=1.0)      # the notebook counts the dispersion direction only
-    etc = LFASTETC(wide, n_telescopes=20)
+    etc = LFASTETC(wide, n_telescopes=20, lsf=None)     # the oracle is the boxcar per resel
     src = Source.blackbody(5800, mag=15, band="V")
     res = etc.exptime(src, snr=50)
     # the reference grid overshoots lambda_max by one step; compare on the common bins
@@ -206,7 +206,9 @@ def test_nan_in_zero_throughput_bins_and_at_outside_grid():
     src = Source.blackbody(5800, mag=10, band="J")
     r = etc.exptime(src, snr=10)
     assert np.isnan(r.exptime).any()
-    good = etc.telescope.kopt(etc.wavelength) > 1e-3        # outside the telluric cores
+    # outside the telluric cores: K_opt's 1 nm sampling clear, and the resolved transmission the
+    # LSF path puts back (water-band lines are far deeper at R=20,000 than their 1 nm average)
+    good = (etc.telescope.kopt(etc.wavelength) > 1e-3) & (etc.sky.transmission(etc.wavelength) > 0.5)
     assert np.nanmax(r.exptime[good]) < 1e7     # n_pix is now 36 for R=18,000 (#13)
     m = etc.limiting_magnitude(src, 600, 10, wavelength="all")
     assert np.isnan(m[~(etc.telescope.kopt(etc.wavelength) > 0)]).all()
@@ -432,7 +434,10 @@ def test_kopt_below_epsilon_is_zero_throughput():
     m = (r.wavelength > 680) & (r.wavelength < 695)
     assert np.isnan(r.exptime[m]).any()                               # the 687 nm core is invalid ...
     assert np.nanmax(r.exptime[m]) < 2 * np.nanmedian(r.exptime[m])    # ... not a 5x finite spike (B-band wing stays finite)
-    assert (r.valid == (etc.telescope.kopt(r.wavelength) > 0)).all()
+    clear = etc.telescope.kopt(r.wavelength) > 0
+    assert not r.valid[~clear].any()                                    # no valid bin on a zero-K_opt sample ...
+    assert r.valid.sum() >= clear.sum() - 10                            # ... and the LSF path only adds the bins touching a core
+    assert (LFASTETC("bench_316_7p0_o1", lsf=None).exptime(Source.blackbody(5800, 15), 100).valid == clear).all()
 
 
 def test_exptime_result_is_nan_in_invalid_bins_and_summary_follows():
