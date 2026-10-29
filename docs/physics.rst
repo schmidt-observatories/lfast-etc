@@ -216,7 +216,8 @@ The per-resel noise model is unchanged, so for a smooth source the resel numbers
 R > 20,000); narrow lines and airglow keep their equivalent width but get the instrument's width.
 Per pixel, ``snr`` is :math:`N_k t / \sqrt{N_k t + s\,(N_{sky} + D)\,t + s\,n_{exp}\,RN^2}` with
 :math:`s` = ``spatial_px``, which for a continuum source is the resel SNR over
-:math:`\sqrt{p}`; ``exptime`` per pixel is the resel solve carried to its pixels;
+:math:`\sqrt{p}`; ``exptime`` per pixel is solved per pixel for that equivalent target
+(the resel's time on a continuum, smooth across a sky line);
 ``PixelResult.simulate`` scatters each pixel by a Gaussian draw of its own variance.
 ``lsf=None`` (and any ``grid="uniform"`` run) is the reference boxcar with no pixel view.
 

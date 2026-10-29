@@ -31,7 +31,7 @@ def test_continuum_per_resel_numbers_barely_move_and_pixels_sum_to_resels():
     assert px.n_star[k - 3:k + 4].max() / px.n_star[k - 3:k + 4].min() > 1.02
     # SNR per extracted pixel x sqrt(pixels per resel) is the resel's SNR, up to that in-resel slope
     assert px.snr[k] * np.sqrt(6) == pytest.approx(r.snr[j], rel=1e-2)
-    assert px.exptime[k] == r.exptime[j]
+    assert px.exptime[k] == r.exptime[j]                                   # SNR mode: the given time
     # on a flat part of the Bench it is exact
     rb = LFASTETC("bench_r1800").snr(SRC, exptime=600)
     jb = int(np.argmin(np.abs(rb.wavelength - 550))); kb = int(np.argmin(np.abs(rb.pixel.wavelength - 550)))
@@ -128,3 +128,20 @@ def test_sky_radiance_is_convolved_per_resel_and_per_pixel():
     assert sky_surface_brightness_ab(etc).shape == etc.wavelength.shape
     with pytest.raises(ValueError):
         box.sky_radiance("pixel")
+
+
+def test_exptime_per_pixel_is_solved_per_pixel_and_smooth_across_a_sky_line():
+    """Exposure-time mode on the 1083 nm airglow lines (CSHELL R=21,500): the per-pixel time is the
+    per-pixel solve for snr/sqrt(pixels per resel), equal to the resel's time on the continuum and
+    without resel-sized steps on the line (the earlier carry-over stepped there)."""
+    etc = LFASTETC("cshell_r21500", wavelength_min_nm=1081.6, wavelength_max_nm=1084.4)
+    r = etc.exptime(Source.blackbody(5800.0, 15.0, "V"), snr=50 * np.sqrt(5))
+    px = r.pixel
+    k = int(np.argmin(np.abs(px.wavelength - 1082.3)))                    # continuum
+    j = int(np.argmin(np.abs(r.wavelength - px.wavelength[k])))
+    assert px.exptime[k] == pytest.approx(r.exptime[j], rel=2e-3)
+    on = (px.wavelength > 1083.1) & (px.wavelength < 1083.6)              # the He/OH blend
+    jumps = np.abs(np.diff(px.exptime[on]) / px.exptime[on][:-1])
+    assert px.exptime[on].max() > 1.2 * px.exptime[k]                     # the line costs time ...
+    assert jumps.max() < 0.15                                              # ... smoothly: <15%/px on the flank (a resel step was >50%)
+    assert np.isfinite(px.snr[px.valid]).all() and np.isnan(px.exptime[~px.valid]).all()

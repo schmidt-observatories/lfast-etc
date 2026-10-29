@@ -175,9 +175,10 @@ class PixelResult:
     pixel with the ``spatial_px`` pixels of the aperture summed in: ``n_star`` [e-/s] is the
     source in that pixel, ``n_sky_pix`` the sky per physical pixel (as in ``ETCResult``), so one
     extracted pixel's variance is ``n_star t + spatial_px (n_sky_pix + dark_pix) t + spatial_px
-    n_exp RN^2``. ``exptime`` is the per-resel solve carried to the pixels of each resel;
-    ``snr`` is per extracted pixel, which for a continuum source equals ``ETCResult.snr /
-    sqrt(pixels_per_resel)``. Pixels whose resolution element has zero throughput are invalid
+    n_exp RN^2``. ``snr`` is per extracted pixel, which for a continuum source equals
+    ``ETCResult.snr / sqrt(pixels_per_resel)``; in exposure-time mode ``exptime`` is solved per
+    pixel for that equivalent per-pixel target (the resel's time on a continuum, smooth across a
+    sky line rather than stepping at resel boundaries), in SNR mode it is the given time. Pixels whose resolution element has zero throughput are invalid
     (``n_star`` 0, ``snr``/``exptime`` NaN), as for the resels.
     """
     wavelength: np.ndarray
@@ -492,6 +493,7 @@ class LFASTETC:
         return int(n_exp)
 
     def _result(self, source, r, t, snr, n_exp, solved_for):
+        snr_target = snr                                   # the scalar target in exposure-time mode
         valid = r["n_star"] > 0
         t = np.where(valid, np.broadcast_to(np.asarray(t, float), self.wavelength.shape), np.nan)
         snr = np.where(valid, np.broadcast_to(np.asarray(snr, float), self.wavelength.shape), np.nan)
@@ -516,7 +518,14 @@ class LFASTETC:
             ins, rp, wp = self.instrument, r["pixel"], self.pixel_wavelength
             sp, j = ins.spatial_px, self._px_resel
             valid_px = rp["n_star"] > 0                                      # pixels follow their resel's validity
-            t_px = np.where(valid_px, t[j], np.nan)
+            if solved_for == "exptime":
+                # solve per pixel for the equivalent per-pixel target (snr / sqrt(pixels per resel)):
+                # for a continuum this is the resel's time, and it stays smooth across a sky line
+                # instead of stepping at resel boundaries
+                t_px = self._exptime_formula(rp["n_star"], rp["n_sky_pix"], r["dark_pix"], r["read_noise"], sp,
+                                             float(snr_target) / np.sqrt(ins.pixels_per_resel), n_exp)
+            else:
+                t_px = np.where(valid_px, t[j], np.nan)
             snr_px = self._snr_formula(rp["n_star"], rp["n_sky_pix"], r["dark_pix"], r["read_noise"], sp,
                                        np.nan_to_num(t_px), n_exp)
             snr_px = np.where(np.isfinite(t_px), snr_px, np.nan)
