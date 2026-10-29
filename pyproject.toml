@@ -45,6 +45,7 @@ where = ["src"]
   "data/throughput/*.npz",
   "data/sky/*.fits",
   "data/config/*.toml",
+  "data/*.mplstyle",
   "web/templates/*.html",
 ]
 

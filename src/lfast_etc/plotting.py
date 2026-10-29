@@ -3,11 +3,19 @@
 Every function takes an optional ``ax`` and returns it, so the plots compose
 with ``plt.subplots``. The ``ETCResult``, ``LFASTETC`` and ``Source`` classes
 expose the relevant ones as methods (``res.plot_noise_budget()`` etc.).
+
+Importing this module applies the package matplotlib style (``STYLE``,
+``data/lfast.mplstyle``): STIX serif, inward ticks, a light grid and a
+six-colour palette. ``plt.style.use('default')`` afterwards restores matplotlib's.
 """
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
 from .constants import H_PLANCK, C_LIGHT
+
+STYLE = Path(__file__).with_name("data") / "lfast.mplstyle"
+plt.style.use(STYLE)      # the package style; ``plt.style.use('default')`` restores matplotlib's
 
 UNIT_DIAMETER_M = 0.726
 

@@ -15,11 +15,7 @@ PREAMBLE = """import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from lfast_etc import LFASTETC, Source, Telescope, Instrument, Sky, list_instruments
-from lfast_etc.plotting import plot_snr_map, plot_limiting_magnitude, plot_vs_n_telescopes, equivalent_diameter_axis
-try:
-    plt.style.use('gks')      # the author's matplotlib style; skipped if you do not have it
-except OSError:
-    pass"""
+from lfast_etc.plotting import plot_snr_map, plot_limiting_magnitude, plot_vs_n_telescopes, equivalent_diameter_axis"""
 
 NOTEBOOKS = {}
 

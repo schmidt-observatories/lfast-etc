@@ -618,3 +618,10 @@ def test_choi_seeing_model_is_calibrated_and_gentler_than_moffat():
     assert 0.75 < t50.seeing_factor(550.0) < 0.95 and t50.seeing_factor(550.0) > Telescope(seeing_arcsec=2.0).seeing_factor(550.0) + 0.25
     # out-of-table seeing is clamped, not extrapolated
     assert Telescope(seeing_arcsec=5.0).seeing_factor(550.0) == pytest.approx(Telescope(seeing_arcsec=3.0).seeing_factor(550.0))
+
+
+def test_plotting_import_applies_package_style():
+    import matplotlib.pyplot as plt
+    import lfast_etc.plotting as lp
+    assert lp.STYLE.is_file()
+    assert plt.rcParams["xtick.direction"] == "in" and plt.rcParams["legend.frameon"] is False

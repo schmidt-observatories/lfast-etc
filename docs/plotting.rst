@@ -140,6 +140,8 @@ All helpers accept ``ax``, so a one-page summary of an observation is a few line
 Styling
 -------
 
-The helpers set labels and titles only; they inherit whatever matplotlib style is active. The
-notebooks use ``plt.style.use('gks')`` when that style is installed and fall back to the default
-otherwise.
+Importing ``lfast_etc.plotting`` (which every ``.plot*`` method does) applies the package style,
+``lfast_etc/data/lfast.mplstyle``: STIX serif fonts, inward ticks with minor ticks, a light grid
+and a six-colour palette. The helpers themselves set labels and titles only, so
+``plt.style.use('default')`` after the import restores matplotlib's look, and any other style
+sheet can be layered on top.

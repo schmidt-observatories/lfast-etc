@@ -1,6 +1,15 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+Changed
+
+* The matplotlib style the notebooks used (``plt.style.use('gks')``, a file only the author had)
+  ships in the package as ``data/lfast.mplstyle`` and is applied when ``lfast_etc.plotting`` is
+  imported. The notebook preamble no longer sets a style.
+
 0.1.2 (2026-10-29)
 ------------------
 
