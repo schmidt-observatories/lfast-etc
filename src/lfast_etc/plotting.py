@@ -208,10 +208,10 @@ def plot_profile(instrument, ax=None):
     ax = _ax(ax, (4.2, 4))
     img = instrument.pixel_image()
     n = img.shape[0]
-    ext = (-n / 2, n / 2, -n / 2, n / 2)
+    ext = (-n / 2 - 0.5, n / 2 - 0.5, -n / 2 - 0.5, n / 2 - 0.5)      # pixel k spans [k-0.5, k+0.5)
     im = ax.imshow(img, origin="lower", extent=ext, cmap="viridis", interpolation="nearest")
     if n > 1:
-        for k in np.arange(-n / 2, n / 2 + 1):
+        for k in np.arange(-n / 2 - 0.5, n / 2 + 0.5):
             ax.axhline(k, color="w", lw=0.3, alpha=0.5); ax.axvline(k, color="w", lw=0.3, alpha=0.5)
     ax.set_xlabel("dispersion (pixels)"); ax.set_ylabel("spatial (pixels)")
     ax.set_title(f"{instrument.name}: {instrument.profile}, {instrument.pixels_per_resel:g} x "
