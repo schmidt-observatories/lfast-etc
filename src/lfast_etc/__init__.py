@@ -19,9 +19,9 @@ from .instrument import Instrument, list_instruments
 from .telescope import Telescope
 from .source import Source, BANDS
 from .sky import Sky
-from .etc import LFASTETC, ETCResult
+from .etc import LFASTETC, ETCResult, PixelResult, LSFS
 
 __all__ = [
-    "__version__", "LFASTETC", "ETCResult", "Instrument", "list_instruments",
+    "__version__", "LFASTETC", "ETCResult", "PixelResult", "LSFS", "Instrument", "list_instruments",
     "Telescope", "Source", "Sky", "BANDS",
 ]

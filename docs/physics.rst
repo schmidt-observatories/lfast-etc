@@ -1,10 +1,11 @@
 Physics
 =======
 
-Everything is computed per **resolution element** on a grid with one point per resel,
-:math:`\lambda_{j+1} = \lambda_j (1 + 1/R)`, :math:`\delta\lambda_j = \lambda_j / R`.
-This is the per-bin logic of the reference LFAST ETC notebook (2026-10-12), which the test-suite
-reproduces to 1e-6.
+Results are reported per **resolution element** on a grid with one point per resel,
+:math:`\lambda_{j+1} = \lambda_j (1 + 1/R)`, :math:`\delta\lambda_j = \lambda_j / R`, and, since the
+line-spread function was added (:ref:`lsf`), per **detector pixel** as well (``result.pixel``).
+The per-bin noise logic is that of the reference LFAST ETC notebook (2026-10-12), which the
+test-suite reproduces to 1e-6 with ``lsf=None``.
 
 Source
 ------
@@ -172,6 +173,57 @@ notebook, which says the 15.5 cm obscuration is already in the budget; it is (th
 obscuration is counted twice or 0.726 m is a polished clear aperture not stated in the papers.
 (ii) Separating the instrument-only curve from the LBLRTM transmission would remove the proxy
 atmosphere here and fix the double attenuation of the sky path (#32).
+
+.. _lsf:
+
+Line-spread function and detector pixels
+----------------------------------------
+
+The reference notebook averages the source over each resolution element (a top hat of width
+:math:`\lambda/R`) and the sky over the SkyCalc samples inside it: a boxcar, critically sampled,
+with no instrumental profile. A narrow line then lands in one bin, and anything drawn through the
+bins turns it into a triangle. Since ``LFASTETC(lsf=...)`` (default ``"gaussian"``) the
+calculation runs the way a spectrograph does:
+
+1. **Fine working grid.** ``oversample`` (8) samples per detector pixel on a geometric grid,
+   padded on both sides so the kernel never meets an edge. The detector pixel grid is
+   :math:`\lambda_{k+1} = \lambda_k (1 + 1/(R\,p))` with :math:`p` = ``pixels_per_resel``, from the
+   first resel wavelength, so pixel :math:`p\,j` is centred on resel :math:`j`.
+2. **Densities.** The source photon flux (lines bin-averaged over the fine step, so a line narrower
+   than a fine sample still keeps its equivalent width) times the collecting area, the throughput
+   and the QE gives an electron-rate density in e\ :sup:`-` s\ :sup:`-1` nm\ :sup:`-1`; the
+   SkyCalc radiance (bin-averaged, nearest sample below the table's R=20,000) times the
+   fiber solid angle and the extended-source throughput gives the sky's.
+3. **Atmosphere.** :math:`K_{opt}` ships with the paper's atmosphere at 1 nm sampling, far coarser
+   than any resel. On the fine grid :math:`K_{opt}` is divided by the SkyCalc transmission
+   box-averaged over 1 nm (floored at 0.2 so telluric cores do not blow up) and multiplied by the
+   resolved SkyCalc transmission, so telluric lines have the sky table's resolution instead of
+   1 nm (the workaround for #32; the two atmospheres differ in PWV, so the swap is approximate in
+   the water bands). Samples where :math:`K_{opt} = 0` stay zero-throughput.
+4. **Convolution** with the LSF, a kernel of constant width in :math:`\ln\lambda` since the grid is
+   geometric: ``"gaussian"`` has FWHM one resel (:math:`\lambda/R`); ``"tophat"`` is the fiber image
+   on the detector, a top hat ``pixels_per_resel`` wide blurred by the ``BLUR_SIGMA_PX`` camera
+   blur of :ref:`aperture`.
+5. **Integration** of the convolved densities over each detector pixel (``result.pixel``, rates
+   per *extracted* pixel with the ``spatial_px`` pixels of the aperture summed in) and over each
+   resolution element (the per-resel API; a resel is the sum of its pixels, half of each end pixel
+   for even ``pixels_per_resel``). A pixel or resel is invalid as soon as one of its fine samples
+   has zero throughput, the same neighbour-zeroing as ``Telescope.kopt`` (#12), so no bin is left
+   on a :math:`10^{-6}` wing of a telluric core with an absurd exposure time.
+
+The per-resel noise model is unchanged, so for a smooth source the resel numbers move by about
+:math:`10^{-4}` (source) and :math:`10^{-3}` (sky, now bin-averaged rather than nearest-sampled at
+R > 20,000); narrow lines and airglow keep their equivalent width but get the instrument's width.
+Per pixel, ``snr`` is :math:`N_k t / \sqrt{N_k t + s\,(N_{sky} + D)\,t + s\,n_{exp}\,RN^2}` with
+:math:`s` = ``spatial_px``, which for a continuum source is the resel SNR over
+:math:`\sqrt{p}`; ``exptime`` per pixel is the resel solve carried to its pixels;
+``PixelResult.simulate`` scatters each pixel by a Gaussian draw of its own variance.
+``lsf=None`` (and any ``grid="uniform"`` run) is the reference boxcar with no pixel view.
+
+Templates set the ceiling: the Pickles library is sampled at 5 A (R of a few thousand), the
+SkyCalc table at R=20,000, so on CSHELL at R=43,000 stellar lines are template-limited and airglow
+lines are the table's shape convolved again; a higher-resolution sky table (SkyCalc serves up to
+R=10\ :sup:`6` through ``skycalc_cli``) and PHOENIX HiRes spectra (Husser et al. 2013) would lift both.
 
 .. _seeing:
 

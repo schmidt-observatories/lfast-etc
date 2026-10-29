@@ -53,6 +53,16 @@ Added
 
 Changed
 
+* Line-spread function and detector pixels: ``LFASTETC(lsf="gaussian"|"tophat"|None,
+  oversample=8)``. The source, sky and the resolved SkyCalc transmission (``K_opt``'s 1 nm
+  atmosphere divided out) are evaluated on a fine working grid, convolved with the LSF (Gaussian
+  of FWHM one resel, or the fiber-image top hat with the camera blur) and integrated over each
+  detector pixel (``ETCResult.pixel``, a ``PixelResult`` with per-extracted-pixel rates, ``snr``,
+  ``exptime``, ``peak_e_per_pixel``, ``simulate()``) and over each resolution element (the
+  per-resel API, now the sum of its pixels). ``"gaussian"`` is the default; ``lsf=None`` and a
+  ``"uniform"`` grid are the reference boxcar. Smooth-source resel numbers move by ~1e-4 (source)
+  and ~1e-3 (sky); narrow lines keep their equivalent width and get the instrument's width.
+  ``Sky.transmission_smoothed``.
 * ``Telescope.throughput_cascade()`` and ``LFASTETC.throughput_cascade()`` /
   ``plot_throughput_cascade()`` lay the shipped ``K_opt`` out as the Choi et al. (2026) budget:
   the paper's wavelength-independent stages (``CHOI_STAGES``) plus a derived residual for mirror,
