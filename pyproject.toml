@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lfast-etc"
-version = "0.1.1"
+version = "0.1.2"
 authors = [{ name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org" }]
 description = "Exposure Time Calculator for the LFAST telescope array (WIYN Bench spectrograph and CSHELL)."
 readme = "README.md"
