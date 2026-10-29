@@ -1,5 +1,5 @@
 Changelog
-==
+=========
 
 Unreleased
 ----------
@@ -120,4 +120,4 @@ Changed
   WIYN Bench reference mode plus 14 modes from the WIYN configuration table; three CSHELL modes;
   18 um / 50 um fibers with the combiner model and ``telescopes_per_input``; sensitivity maps,
   limiting magnitudes, exposure versus magnitude, ``reads_needed``; Flask/Bokeh browser ETC with
-  a JSON API; notebooks 01-10; independent review (``review_report``).
+  a JSON API; notebooks 01-10.
