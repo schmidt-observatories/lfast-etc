@@ -30,6 +30,19 @@ cable at 2x2 binning, so these are scalings, not LFAST measurements. Wavelength 
 clipped to the 400-1800 nm throughput curves; ``bench_r1800`` stops at 686 nm because
 :math:`K_{opt}` drops to 5e-9 at the 687 nm O\ :sub:`2` band.
 
+**Bench detector and gain.** The Bench presets describe the WIYN STA1 CCD (`characteristics
+<https://www.wiyn.org/Instruments/STA1vsT2KA.html>`_): 2600 x 4000 pixels of 12 um, an 18-bit
+ADC and three gain modes. The presets assume **medium gain**; switch modes by overriding both
+``read_noise`` and ``full_well`` (at high gain the ADC clips before the well fills).
+
+====================================  =======  ============  ==============  ===========================
+gain mode                             e-/DN    read noise    ADC limit       binding limit
+====================================  =======  ============  ==============  ===========================
+high                                  0.219    3.2 e-        57,400 e-       ADC (1% linearity 63,000 e-)
+medium (preset)                       0.438    3.7 e-        114,800 e-      full well 87,500 e-
+low                                   0.876    4.3 e-        229,600 e-      full well 87,500 e-
+====================================  =======  ============  ==============  ===========================
+
 **CSHELL.** Three modes: the bare fiber at R = 18,000 and the 200 um and 100 um slits at
 R = 21,500 and 43,000. The slit throughputs are placeholders (0.75 and 0.5) until measured. The
 free spectral range is about :math:`2.5\times10^{-3}\lambda`, so one setting is 27 to 44 A wide;

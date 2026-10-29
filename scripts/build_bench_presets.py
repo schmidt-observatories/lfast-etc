@@ -22,6 +22,15 @@ ANCHOR_R, ANCHOR_RES = 1800.0, 5500.0 / 3.35      # bench_r1800 and its table ro
 ANCHOR_S_OPT, ANCHOR_EFF = 0.3, 72.0
 WMIN, WMAX = 400.0, 1800.0
 
+STA1_NOTE = '''# Detector: WIYN STA1 CCD (wiyn.org/Instruments/STA1vsT2KA.html), 18-bit ADC, three gain modes:
+#   mode     e-/DN   read noise   ADC limit     binding limit
+#   high     0.219   3.2 e-        57,400 e-    ADC (below the 63,000 e- 1% linearity point)
+#   medium   0.438   3.7 e-       114,800 e-    full well 87,500 e-
+#   low      0.876   4.3 e-       229,600 e-    full well 87,500 e-
+# This preset assumes MEDIUM gain (read_noise 3.7, full_well 87,500). For high gain use
+# Instrument.from_preset(..., read_noise=3.2, full_well=57400).
+'''
+
 # grating label, central A, order, coverage A, red-cable resolution A, peak eff %, note
 ROWS = [
     ("316 @ 7.0", 7500, 1, 5290, 5.72, 70, ""),
@@ -80,8 +89,8 @@ spectrograph_efficiency = {s_opt:.3f}  {eff_line}
 slit_throughput = 1.0
 qe = 0.75              # placeholder flat QE, as bench_r1800
 dark_current = 3.0e-4  # e-/s/pix
-read_noise = 3.7       # e-/pix
-full_well = 87500.0    # e-/pix: WIYN STA1 CCD (1% linearity to 63,000 e-; wiyn.org/Instruments/STA1vsT2KA.html)
+{STA1_NOTE}read_noise = 3.7       # e-/pix, STA1 medium gain
+full_well = 87500.0    # e-/pix, STA1 full well (medium gain; 1% linearity to 63,000 e-)
 min_exptime = 1.0
 """
         (CONFIG / f"{name}.toml").write_text(text)
