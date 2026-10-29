@@ -1,4 +1,4 @@
-![Logo](docs/logo_schmidt_observatory_system.png)
+![Logo](docs/_static/logo_schmidt_observatory_system.png)
 
 # lfast-etc
 

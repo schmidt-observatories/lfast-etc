@@ -1,5 +1,9 @@
-lfast-etc
-=========
+lfast-etc: Exposure Time Calculator for LFAST
+=============================================
+
+.. image:: _static/logo_schmidt_observatory_system.png
+   :alt: Schmidt Observatory System
+   :width: 320px
 
 ``lfast_etc`` is the exposure time calculator for the **LFAST** telescope array at Kitt Peak:
 nominally 20 unit telescopes of 0.726 m, each feeding a fiber, with the fibers merged into one
@@ -28,83 +32,33 @@ it evolves.
     res.plot_noise_budget(ax=axes[1]); axes[1].set_title("what limits the SNR", fontsize=9)
     fig.tight_layout()
 
-.. grid:: 1 2 2 3
-   :gutter: 2
+.. note::
 
-   .. grid-item-card:: Install
-      :link: installation
-      :link-type: doc
+   New here? Read :doc:`installation`, then work through :doc:`quickstart` and
+   :doc:`concepts`. The :doc:`notebooks` are executed Jupyter notebooks that cover
+   each science case end to end, with their figures and printed numbers saved in place.
 
-      pip install, optional extras, checking the installation.
+What it models
+--------------
 
-   .. grid-item-card:: Quick start
-      :link: quickstart
-      :link-type: doc
+- A telescope array: the number of unit telescopes, the fiber feeding each one and the
+  combiner, giving an equivalent collecting diameter that follows the array design.
+- Two spectrographs with 18 presets, the 15 WIYN Bench grating modes and three CSHELL
+  modes, each a plain TOML file you can copy and edit.
+- Sources: blackbodies, power laws, user spectra and added spectral lines, normalised to a
+  magnitude in any band.
+- The sky: the bundled SkyCalc table for Kitt Peak, radiance per resel and per pixel through
+  the line-spread function, and a hook for your own table.
+- Signal-to-noise per resolution element and per detector pixel, the exposure time that
+  reaches a target SNR, limiting magnitudes, saturation, and maps over magnitude and time.
+- Plots: simulated spectra, noise budgets, sensitivity maps and exposure-versus-magnitude
+  curves, in one house style.
 
-      Ten minutes from import to a simulated spectrum.
-
-   .. grid-item-card:: Concepts
-      :link: concepts
-      :link-type: doc
-
-      Resolution elements, SNR per resel versus per pixel, how exposure time and limiting magnitude are solved.
-
-   .. grid-item-card:: Instruments and presets
-      :link: instruments
-      :link-type: doc
-
-      The 15 Bench modes and three CSHELL modes, every preset field, how to add your own.
-
-   .. grid-item-card:: Telescope array
-      :link: telescope
-      :link-type: doc
-
-      Number of telescopes, the two fibers, the combiner model, equivalent diameter.
-
-   .. grid-item-card:: Sources
-      :link: sources
-      :link-type: doc
-
-      Blackbodies, power laws, user spectra, spectral lines, magnitudes in other bands.
-
-   .. grid-item-card:: Sky
-      :link: sky
-      :link-type: doc
-
-      The bundled SkyCalc table, what "grey time" means for your numbers, bringing your own table.
-
-   .. grid-item-card:: Sensitivity functions
-      :link: sensitivity
-      :link-type: doc
-
-      Maps over magnitude and time, limiting magnitudes, exposure versus magnitude, saturation.
-
-   .. grid-item-card:: Plot gallery
-      :link: plotting
-      :link-type: doc
-
-      Every plot helper, with the figure it makes and the one-line call behind it.
-
-   .. grid-item-card:: Physics
-      :link: physics
-      :link-type: doc
-
-      The noise model, throughput conventions and the list of known limitations.
-
-   .. grid-item-card:: Notebooks
-      :link: notebooks
-      :link-type: doc
-
-      Ten executed notebooks: a walkthrough and nine science cases versus the array size.
-
-   .. grid-item-card:: API reference
-      :link: api
-      :link-type: doc
-
-      ``LFASTETC``, ``ETCResult``, ``Source``, ``Telescope``, ``Instrument``, ``Sky``, ``plotting``.
+Contents
+--------
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
    :caption: Getting started
 
    installation
@@ -112,7 +66,7 @@ it evolves.
    concepts
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
    :caption: User guide
 
    instruments
@@ -125,16 +79,23 @@ it evolves.
    physics
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
    :caption: Examples
 
    notebooks
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
    :caption: Reference
 
    api
    changelog
    contributing
    review_report
+
+Indices and tables
+------------------
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

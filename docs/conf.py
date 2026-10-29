@@ -10,7 +10,7 @@ release = importlib.metadata.version("lfast-etc")
 
 extensions = [
     "sphinx.ext.autodoc", "sphinx.ext.autosummary", "sphinx.ext.napoleon",
-    "sphinx.ext.mathjax", "sphinx.ext.viewcode", "sphinx_design",
+    "sphinx.ext.mathjax", "sphinx.ext.viewcode",
     "sphinx_copybutton", "nbsphinx", "myst_parser",
     "matplotlib.sphinxext.plot_directive",
 ]
@@ -45,7 +45,7 @@ html_theme_options = {
     "style_external_links": True,
 }
 html_static_path = ["_static"]
-html_logo = "logo_schmidt_observatory_system.png"
+html_logo = "_static/logo_schmidt_observatory_system.png"
 html_title = f"lfast-etc {release}"
 html_css_files = ["custom.css"]
 
