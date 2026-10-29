@@ -31,7 +31,7 @@ def test_continuum_per_resel_numbers_barely_move_and_pixels_sum_to_resels():
     assert px.n_star[k - 3:k + 4].max() / px.n_star[k - 3:k + 4].min() > 1.02
     # SNR per extracted pixel x sqrt(pixels per resel) is the resel's SNR, up to that in-resel slope
     assert px.snr[k] * np.sqrt(6) == pytest.approx(r.snr[j], rel=1e-2)
-    assert px.exptime[k] == r.exptime[j]
+    assert px.exptime[k] == r.exptime[j]                                   # SNR mode: the given time
     # on a flat part of the Bench it is exact
     rb = LFASTETC("bench_r1800").snr(SRC, exptime=600)
     jb = int(np.argmin(np.abs(rb.wavelength - 550))); kb = int(np.argmin(np.abs(rb.pixel.wavelength - 550)))
@@ -107,3 +107,41 @@ def test_pixel_result_simulate_table_and_validation():
         LFASTETC("bench_r1800", lsf="sinc")
     u = LFASTETC("bench_r1800", grid="uniform")           # pixels need the resel grid: boxcar only
     assert u.lsf is None and u.exptime(SRC, 50).pixel is None
+
+
+def test_sky_radiance_is_convolved_per_resel_and_per_pixel():
+    """The He/OH airglow lines near 1083 nm on CSHELL R=18,000: the raw table (R=20,000, one
+    sample per line) is spikier than the LSF-convolved radiance, which spans ~6 pixels, keeps the
+    line flux, and is what sky_surface_brightness_ab reports."""
+    from lfast_etc.plotting import sky_surface_brightness_ab
+    kw = dict(wavelength_min_nm=1082, wavelength_max_nm=1085)
+    box, etc = LFASTETC("cshell_r18000", lsf=None, **kw), LFASTETC("cshell_r18000", **kw)
+    raw, resel, px = box.sky_radiance(), etc.sky_radiance("resel"), etc.sky_radiance("pixel")
+    band = float(etc.sky.radiance_per_bin(np.array([1083.5]), np.array([3.0]))[0])                # the table's own band mean
+    assert px.mean() == pytest.approx(band, rel=0.03) and resel.mean() == pytest.approx(band, rel=0.03)   # flux kept
+    assert abs(raw.mean() / band - 1) > abs(resel.mean() / band - 1)                               # nearest-sampling was not
+    assert px.max() < raw.max() and px.std() / px.mean() < raw.std() / raw.mean()                 # lines spread out
+    k = int(px.argmax())
+    assert (px[k - 10:k + 11] > 0.5 * px[k]).sum() >= 5                                             # ~one resel wide
+    sb = sky_surface_brightness_ab(etc, per="pixel")
+    assert sb.shape == etc.pixel_wavelength.shape and np.isfinite(sb).all()
+    assert sky_surface_brightness_ab(etc).shape == etc.wavelength.shape
+    with pytest.raises(ValueError):
+        box.sky_radiance("pixel")
+
+
+def test_exptime_per_pixel_is_solved_per_pixel_and_smooth_across_a_sky_line():
+    """Exposure-time mode on the 1083 nm airglow lines (CSHELL R=21,500): the per-pixel time is the
+    per-pixel solve for snr/sqrt(pixels per resel), equal to the resel's time on the continuum and
+    without resel-sized steps on the line (the earlier carry-over stepped there)."""
+    etc = LFASTETC("cshell_r21500", wavelength_min_nm=1081.6, wavelength_max_nm=1084.4)
+    r = etc.exptime(Source.blackbody(5800.0, 15.0, "V"), snr=50 * np.sqrt(5))
+    px = r.pixel
+    k = int(np.argmin(np.abs(px.wavelength - 1082.3)))                    # continuum
+    j = int(np.argmin(np.abs(r.wavelength - px.wavelength[k])))
+    assert px.exptime[k] == pytest.approx(r.exptime[j], rel=2e-3)
+    on = (px.wavelength > 1083.1) & (px.wavelength < 1083.6)              # the He/OH blend
+    jumps = np.abs(np.diff(px.exptime[on]) / px.exptime[on][:-1])
+    assert px.exptime[on].max() > 1.2 * px.exptime[k]                     # the line costs time ...
+    assert jumps.max() < 0.15                                              # ... smoothly: <15%/px on the flank (a resel step was >50%)
+    assert np.isfinite(px.snr[px.valid]).all() and np.isnan(px.exptime[~px.valid]).all()
